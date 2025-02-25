@@ -760,4 +760,21 @@ Proof.
     apply H.
 Qed.
 
+Theorem adv_cpa_otsr_p {P} {n} {p} :
+  ∀ A : adversary (I_PK_CPA P),
+  (∀ i b, AdvFor (PK_OTSR P) (A ∘ SLIDE P i n ∘ CHOOSE P b) <= p) →
+  AdvFor (PK_CPA P n) A <= p *+ 2 *+ n.
+Proof.
+  intros A H.
+  eapply Order.le_trans.
+  1: apply adv_cpa_otsr.
+  eapply Order.le_trans.
+  + apply Num.Theory.ler_sum => i _.
+    apply Num.Theory.lerD; apply H.
+  + rewrite big_const_seq.
+    rewrite count_predT size_iota.
+    rewrite GRing.iter_addr_0.
+    rewrite -GRing.mulr2n //.
+Qed.
+
 End PKScheme.

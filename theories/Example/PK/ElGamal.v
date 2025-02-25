@@ -307,31 +307,20 @@ Obligation 1.
   apply module_trimmed.
 Qed.
 
-Theorem elgamal_cpa {n}
+Theorem elgamal_cpa_p {n} {p}
   : ∀ A : adversary (I_PK_CPA elgamal),
-  AdvFor (PK_CPA elgamal n) A <=
-    \sum_(i <- iota 0 n)
-      ( AdvFor DDH (A ∘ SLIDE elgamal i n ∘ CHOOSE elgamal true ∘ RED)
-      + AdvFor DDH (A ∘ SLIDE elgamal i n ∘ CHOOSE elgamal false ∘ RED)).
+  (∀ i b, AdvFor DDH (A ∘ SLIDE elgamal i n ∘ CHOOSE elgamal b ∘ RED) <= p) →
+  AdvFor (PK_CPA elgamal n) A <= p *+ 2 *+ n.
 Proof.
-  intros A.
+  intros A H.
+  apply adv_cpa_otsr_p => i b.
   eapply le_trans.
-  1: apply adv_cpa_otsr.
-  apply ler_sum.
-  intros i _.
-  apply Num.Theory.lerD.
-  + apply eq_ler.
-    unfold AdvFor.
-    rewrite 2!(sep_link_assoc _ _ RED).
-    pose proof (elgamal_ots (A' A n i true)). 
-    unfold AdvFor in H.
-    apply H.
-  + apply eq_ler.
-    unfold AdvFor.
-    rewrite 2!(sep_link_assoc _ _ RED).
-    pose proof (elgamal_ots (A' A n i false)). 
-    unfold AdvFor in H.
-    apply H.
+  2: apply (H i b).
+  pose proof (elgamal_ots (A' A n i b)) as H'. 
+  unfold AdvFor.
+  apply eq_ler.
+  rewrite 2!(sep_link_assoc _ _ RED).
+  apply H'.
 Qed.
 
 
