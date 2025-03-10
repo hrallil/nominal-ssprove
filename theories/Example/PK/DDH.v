@@ -16,7 +16,7 @@ Set Bullet Behavior "Strict Subproofs".
 Set Default Goal Selector "!".
 Set Primitive Projections.
 
-From NominalSSP Require Import Prelude Group Misc.
+From NominalSSP Require Import Prelude Group.
 Import Num.Def Num.Theory Order.POrderTheory.
 Import PackageNotation.
 #[local] Open Scope ring_scope.

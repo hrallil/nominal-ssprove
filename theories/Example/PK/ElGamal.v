@@ -23,13 +23,13 @@ Import PackageNotation.
 #[local] Open Scope package_scope.
 Import GroupScope GRing.Theory.
 
-From NominalSSP Require Import DDH Misc Scheme.
+From NominalSSP Require Import DDH Scheme Reductions.
 
 
 Module ElGamal (GP : GroupParam).
 
 Module DDH' := DDH GP.
-Import PKScheme DDH'.
+Import PKScheme PKReductions DDH'.
 
 Module GT := GroupTheorems GP.
 Import GP GT.
@@ -62,8 +62,10 @@ Definition elgamal : pk_scheme := {|
   |}.
 
 
-Theorem correct_elgamal : CORR0 elgamal ≈₀ CORR1 elgamal.
+Theorem correct_elgamal :
+  perfect (I_CORR elgamal) (CORR0 elgamal) (CORR1 elgamal).
 Proof.
+  eapply prove_perfect.
   apply eq_rel_perf_ind_eq.
   simplify_eq_rel m.
   apply r_const_sample_L.
@@ -79,27 +81,6 @@ Proof.
 Qed.
 
 
-(*
-Definition stop_loc : Location := ('option 'unit; 4%N).
-
-Definition RED_loc :=
-  fset [:: stop_loc ].
- *)
-
-(*
-Definition init' : raw_code ('pub elgamal) := locked (
-  #import {sig #[ GETA ] : 'unit → 'el } as GETA ;;
-  mpk ← get PKScheme.init_loc elgamal ;;
-  match mpk with
-  | None => 
-    pk ← GETA tt ;;
-    #put PKScheme.init_loc elgamal := Some pk ;;
-    ret pk
-  | Some pk =>
-    ret pk
-  end).
- *)
-
 Notation init' := (
   mpk ← get PKScheme.init_loc elgamal ;;
   match mpk with
@@ -112,20 +93,10 @@ Notation init' := (
     ret pk
   end).
 
-(*
-#[export] Instance init'_valid {L : {fset Location}} {I : Interface}
-  : PKScheme.init_loc elgamal \in L → ValidCode L (I_DDH) init'.
-Proof.
-  intros H.
-  rewrite /init' -lock.
-  ssprove_valid.
-Qed.
- *)
-
 
 Definition RED :
   module I_DDH (I_PK_OTSR elgamal) :=
-  [module fset [:: flag_loc; PKScheme.init_loc elgamal ] ;
+  [module fset [:: flag_loc; init_loc elgamal ] ;
     #def #[ GET ] (_ : 'unit) : 'el {
       pk ← init' ;;
       @ret 'el pk
@@ -140,54 +111,16 @@ Definition RED :
     }
   ].
 
-#[export] Instance valid_RED_DDH0
-  : ValidPackage (loc (RED ∘ DDH true)%share)
-      Game_import (I_PK_OTSR elgamal) (RED ∘ DDH true)%share.
-Proof.
-  eapply valid_package_inject_locations.
-  2: nssprove_valid.
-  apply fsubsetxx.
-Qed.
-
-#[export] Instance valid_RED_DDH1
-  : ValidPackage (loc (RED ∘ DDH false)%share)
-      Game_import (I_PK_OTSR elgamal) (RED ∘ DDH false)%share.
-Proof.
-  eapply valid_package_inject_locations.
-  2: nssprove_valid.
-  apply fsubsetxx.
-Qed.
-
-(*
-Definition Rel0
-  (flag : flag_loc) (mpk : mpk_loc elgamal)
-  (init : init_loc) (mga : mga_loc) : Prop
-  := (isSome mpk == isSome init)%B &&
-      if flag then init && ~~ mga else
-        (if init then (mpk == mga)%B else ~~ mpk).
- *)
-
-(*
-Notation inv0 := (
-  heap_ignore (PK_OTSR_loc elgamal :|: (RED_loc :|: DDH0_loc))
-  ⋊ quad flag_loc (mpk_loc elgamal) stop_loc mga_loc Rel0
-).
-
-Lemma inv0_Invariant :
-  Invariant (PK_OTSR_loc elgamal) (RED_loc :|: DDH0_loc) inv0.
-Proof.
-  ssprove_invariant; [ apply fsubsetxx | done ].
-Qed.
- *)
-
 Notation inv0 := (
   heap_ignore (fset [:: mga_loc ])
   ⋊ triple_rhs flag_loc (PKScheme.init_loc elgamal) mga_loc
       (λ f pk ga, ~~ f → pk = ga)
 ).
 
-Lemma pk_ots_ddh_perf {b} : PK_OTSR elgamal b ≈₀ (RED ∘ DDH b)%share.
+Lemma pk_ots_ddh_perf b :
+  perfect (I_PK_OTSR elgamal) (PK_OTSR elgamal b) (RED ∘ DDH b).
 Proof.
+  nssprove_share. eapply prove_perfect.
   apply (eq_rel_perf_ind _ _ inv0).
   1: ssprove_invariant.
   1-4: simpl.
@@ -289,23 +222,14 @@ Lemma elgamal_ots
   AdvFor (PK_OTSR elgamal) A = AdvFor DDH (A ∘ RED).
 Proof.
   intros A.
-  unfold AdvFor.
-  rewrite (Adv_perf_l pk_ots_ddh_perf).
-  rewrite (Adv_perf_r pk_ots_ddh_perf).
-  rewrite -Adv_sep_link.
-  nssprove_separate.
+  rewrite (AdvFor_perfect pk_ots_ddh_perf).
+  rewrite Adv_sep_link //.
 Qed.
 
-Local Obligation Tactic := notac.
-
-Program Definition A' (A : adversary (I_PK_CPA elgamal)) n i b
+Program Definition A_SLIDE_CHOOSE (A : adversary (I_PK_CPA elgamal)) n i b
   : adversary (I_PK_OTSR elgamal) :=
   {module (A ∘ SLIDE elgamal i n ∘ CHOOSE elgamal b)%sep }.
-Obligation 1.
-  intros.
-  apply trimmed_link.
-  apply module_trimmed.
-Qed.
+Obligation 1. apply trimmed_link, module_trimmed. Qed.
 
 Theorem elgamal_cpa_p {n} {p}
   : ∀ A : adversary (I_PK_CPA elgamal),
@@ -316,43 +240,10 @@ Proof.
   apply adv_cpa_otsr_p => i b.
   eapply le_trans.
   2: apply (H i b).
-  pose proof (elgamal_ots (A' A n i b)) as H'. 
-  unfold AdvFor.
   apply eq_ler.
+  unfold AdvFor.
   rewrite 2!(sep_link_assoc _ _ RED).
-  apply H'.
+  apply (elgamal_ots (A_SLIDE_CHOOSE A n i b)).
 Qed.
-
-
-(*
-Axiom negl : nat → Prop.
-Axiom poly : raw_module → Axioms.R → Prop.
-Axiom poly_sep_link : ∀ {M M'} {B : Axioms.R}, poly M B → poly M' B → poly (M ∘ M')%sep B.
-Axiom adv_ddh : ∀ (A : raw_module) B, poly A B → AdvFor DDH A <= negl n.
-
-Corollary elgamal_asym {n} {B : Axioms.R} :
-  ∀ A : adversary (I_PK_CPA elgamal),
-  poly A B → AdvFor (PK_CPA elgamal n) A <= (B *+ 2 *+ n)%R.
-Proof.
-  intros A H.
-  eapply le_trans.
-  1: apply elgamal_cpa.
-  eapply le_trans.
-  + apply ler_sum.
-    intros i _.
-    apply Num.Theory.lerD.
-    1,2: apply adv_ddh.
-    1,2: apply poly_sep_link.
-    1,3: apply H.
-    1,2: admit.
-  +
-    rewrite big_const_seq.
-    rewrite count_predT size_iota.
-    rewrite GRing.iter_addr_0.
-    rewrite -GRing.mulr2n //.
-Qed.
-*)
 
 End ElGamal.
-
-

@@ -60,6 +60,17 @@ Definition rel_jdg_replace_sem_r
      : ⊢ ⦃ pre ⦄ l ≈ r' ⦃ post ⦄ :=
   (rel_jdg_replace_sem _ _ _ _ _ _ _ _ Rest (rreflexivity_rule _) Right).
 
+Lemma r_refl {A : choiceType} : ∀ c : raw_code A,
+  ⊢ ⦃ λ '(s₀, s₁), s₀ = s₁ ⦄ c ≈ c ⦃ λ '(a₀, s₀) '(a₁, s₁), a₀ = a₁ ∧ s₀ = s₁ ⦄.
+Proof.
+  intros c.
+  eapply rpost_weaken_rule.
+  1: apply rreflexivity_rule.
+  intros [? ?] [? ?] ?.
+  injection H => ? ?.
+  by subst.
+Qed.
+
 Lemma rsame_head_ignore_prog :
   ∀ (A B : choiceType) (L0 L1 : {fset Location}) (m : code L0 (fset [::]) A) (f₀ f₁ : A → raw_code B) (post : postcond B B),
     fdisjoint L0 L1 →
