@@ -1,4 +1,7 @@
 -R theories NominalSSP
+theories/Example/CKA/CKAScheme.v
+theories/Example/CKA/CKA.v
+
 theories/FsetSolve.v
 theories/SSProve.v
 
