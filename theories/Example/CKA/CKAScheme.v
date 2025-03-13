@@ -153,21 +153,13 @@ Definition CORR1 (K : cka_scheme) :
 
 Definition CORR K b := if b then CORR0 K else CORR1 K.
 
-Definition EPOCH := 3%N.
-
-Definition I_CKA_PCS (K : cka_scheme) :=
-  [interface
-    #val #[ EPOCH ] : 'unit → ('mes K × 'key K)
-  ].
-
 Definition epoch_loc : Location := ('nat; 11%N).
 Definition send_loc (K: cka_scheme) : Location := ('stateS K; 13%N).
 Definition rcv_loc (K: cka_scheme) : Location := ('stateR K; 16%N).
 
-Definition CKA_PCS_locs (K : cka_scheme) :=
-  fset [:: epoch_loc ; send_loc K ; rcv_loc K].
+Definition init_loc (P : cka_scheme) : Location := ('option ('stateS P); 1%N).
 
-Definition init K : raw_code 'unit :=
+Definition init (K : cka_scheme) : raw_code ('unit) :=
   locked (epoch ← get epoch_loc ;;
   match epoch with
   | 0%N =>
@@ -181,16 +173,23 @@ Definition init K : raw_code 'unit :=
   end).
 
 #[export] Instance init_valid {K} {L : {fset Location}} {I : Interface}
-  : epoch_loc → ValidCode L I (init K).
+  : epoch_loc \in L → send_loc K \in L → rcv_loc K \in L → ValidCode L I (init K).
 Proof.
-  intros H.
+  intros epoch send rcv.
   rewrite /init -lock.
   ssprove_valid.
 Qed.
 
+Definition EPOCH := 3%N.
+
+Definition I_CKA_PCS (K : cka_scheme) :=
+  [interface
+    #val #[ EPOCH ] : 'unit → ('mes K × 'key K)
+  ].
+
 Definition CKA_PCS (K : cka_scheme) b t :
   game (I_CKA_PCS K) :=
-  [module CKA_PCS_locs K ;
+  [module fset [:: epoch_loc ; send_loc K ; rcv_loc K] ;
     #def #[ EPOCH ] (_ : 'unit) : ('mes K × 'key K) {
       _ ← init K ;;
 
