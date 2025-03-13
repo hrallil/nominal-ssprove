@@ -127,141 +127,95 @@ Proof.
   apply correct_cka.
 Qed.
 
+Notation init' := (
+  epoch ← get epoch_loc ;;
+  match epoch with
+  | 0%N =>
+    '(pk, x) ← cka.(keygen) ;;
+    #put (send_loc cka) := pk ;;
+    #put (rcv_loc cka) := x ;;
 
+    @ret 'unit Datatypes.tt
+  | _.+1 =>
+    @ret 'unit Datatypes.tt
+end). 
 
-Definition red_epoch_a : Location := ('nat; 10%N).
-Definition red_epoch_b : Location := ('nat; 11%N).
+Notation send epoch_inc t := (
+  if epoch_inc == t.-1 then
+    #import {sig #[ GETA ] : 'unit → 'el } as GETA ;;
+    m ← GETA tt ;;
+    stateR ← get rcv_loc cka ;;
+    @ret  (m, op_exp m stateR)
+    
+  else if epoch_inc == t then 
+    #import {sig #[ GETBC ] : 'unit → 'el × 'el } as GETBC ;;
+    '(m, k) ← GETBC tt ;; 
+     @ret (m, k)
 
-Definition state_sa_loc (K: cka_scheme) : Location := ('stateS K; 13%N).
-Definition state_sb_loc (K: cka_scheme) : Location := ('stateS K; 14%N).
-Definition state_ra_loc (K: cka_scheme) : Location := ('stateR K; 15%N).
-Definition state_rb_loc (K: cka_scheme) : Location := ('stateR K; 16%N).
-
-Definition red_max_epoch : Location := ('nat; 17%N).
-
-Definition RED_loc :=
-  fset [::red_epoch_a ; red_epoch_b ; state_rb_loc cka; state_ra_loc cka; state_sb_loc cka ].
+    (* for the case of t+1, 
+       we see that the behavior is captured by the default case *)
+  else
+    stateS ← get send_loc cka ;;
+    '(stateR', m, k) ← cka.(ckaS) stateS ;;
+    @ret (m, k)
+).
 
 Definition RED t :
   module I_DDH (I_CKA_PCS cka) :=
-  [module CKA_PCS_locs cka;
-    #def #[ INIT ] (_ : 'unit) : 'unit {
-      '(pk, x) ← cka.(keygen) ;;
+  [module fset [:: epoch_loc ; send_loc cka ; rcv_loc cka] ;
+    #def #[ EPOCH ] (_ : 'unit) : ('mes cka × 'key cka) {
+      _ ← init' ;;
 
-      #put (state_sa_loc cka) := pk ;;
-      #put (state_sb_loc cka) := pk ;;
-      #put (state_ra_loc cka) := x ;;
-      #put (state_rb_loc cka) := x ;;
-
-      #put epoch_a := 0 ;;
-      #put epoch_b := 0 ;;
-
-      @ret 'unit Datatypes.tt
-    } ;
-
-    #def #[ SEND_A ] (_ : 'unit) : ('mes cka × 'key cka) {    
-      #import {sig #[ GETA ] : 'unit → 'el } as GETA ;;
-      #import {sig #[ GETBC ] : 'unit → 'el × 'el } as GETBC ;;
-
-      epoch ← get epoch_a ;;
+      epoch ← get epoch_loc ;;
       let epoch_inc := epoch.+1 in
-      #put epoch_a := epoch_inc ;;
+      #put epoch_loc := epoch_inc ;;
 
+      (* Send *)
       if epoch_inc == t.-1 then
-        DDH_a ← GETA tt ;;
-        stateRB ← get state_rb_loc cka ;;
-        @ret ('el × 'el) (DDH_a, op_exp DDH_a stateRB)
+        #import {sig #[ GETA ] : 'unit → 'el } as GETA ;;
+        m ← GETA tt ;;
+        stateR ← get rcv_loc cka ;;
 
-      else if epoch_inc == t then 
-        (*locations need fixing*)
-        '(DDH_b, DDH_c) ← GETBC tt ;; 
-        @ret ('el × 'el) (DDH_b, DDH_c)
+        (* Receive *)
+        stateR ← get rcv_loc cka ;;
+        '(stateS', k) ← cka.(ckaR) stateR m ;;
 
-      (* for the case of t+1, 
-         we see that the behavior is captured by the default case *)
-      else
-        stateSA ← get state_sa_loc cka ;;
-        '(stateRA, m, k) ← cka.(ckaS) stateSA ;;
-        #put (state_ra_loc cka) := stateRA ;;
+        #put (send_loc cka) := stateS' ;;
+
         @ret ('mes cka × 'key cka) (m, k)
-    } ;
-
-    #def #[ RCV_A ] (m : 'mes cka) : 'unit {
-      epoch ← get epoch_a ;;
-      #put epoch_a := epoch.+1 ;;
-      (* if epoch_inc == t.-1 then
-        #put (state_sa_loc cka) := m ;;
-        @ret 'unit Datatypes.tt
         
-      else if epoch_inc == t then (* should this not exist here *)
-        #put (state_sa_loc cka) := m ;;
-        @ret 'unit Datatypes.tt
-        
-      else if epoch_inc == t.+1 then
-        #put (state_sa_loc cka) := m ;;
-        @ret 'unit Datatypes.tt
-        
-      else *)
-      stateRA ← get state_ra_loc cka ;;
-      '(stateSA, k) ← cka.(ckaR) stateRA m ;;
-      #put (state_sa_loc cka) := stateSA ;;
-      @ret 'unit Datatypes.tt
-    } ;
-
-    #def #[ SEND_B ] (_ : 'unit) : ('mes cka × 'key cka) {
-      #import {sig #[ GETA ] : 'unit → 'el } as GETA ;;
-      #import {sig #[ GETBC ] : 'unit → 'el × 'el } as GETBC ;;
-
-      epoch ← get epoch_b ;;
-      let epoch_inc := epoch.+1 in
-      #put epoch_b := epoch_inc ;;
-
-      if epoch_inc == t.-1 then
-        DDH_a ← GETA tt ;;
-        stateRA ← get state_ra_loc cka ;;
-        @ret ('el × 'el) (DDH_a, op_exp DDH_a stateRA)
-
       else if epoch_inc == t then 
-        (* locations need fixing *)
-        '(DDH_b, DDH_c) ← GETBC tt ;; 
-        @ret ('el × 'el) (DDH_b, DDH_c)
+        #import {sig #[ GETBC ] : 'unit → 'el × 'el } as GETBC ;;
+        '(m, k) ← GETBC tt ;; 
+         
+        (* Receive *)
+        stateR ← get rcv_loc cka ;;
+        '(stateS', k') ← cka.(ckaR) stateR m ;;
 
-      (* For the case of t+1, 
-         we see that the behavior is captured by the default case *)
-      else
-        stateSB ← get state_sb_loc cka ;;
-        '(stateRB, m, k) ← cka.(ckaS) stateSB ;;
-        #put (state_rb_loc cka) := stateRB ;;
+        #put (send_loc cka) := stateS' ;;
+
         @ret ('mes cka × 'key cka) (m, k)
-      
-    } ;
 
-    #def #[ RCV_B ] (m : 'mes cka) : 'unit {
-      epoch ← get epoch_b ;;
-      #put epoch_b := epoch.+1 ;;
-      (* if epoch_inc == t.-1 then
-        #put (state_sa_loc cka) := m ;;
-        @ret 'unit Datatypes.tt
-        
-      else if epoch_inc == t then (* should this not exist here *)
-        #put (state_sa_loc cka) := m ;;
-        @ret 'unit Datatypes.tt
-        
-      else if epoch_inc == t.+1 then
-        #put (state_sa_loc cka) := m ;;
-        @ret 'unit Datatypes.tt
-        
-      else *)
-      stateRB ← get state_rb_loc cka ;;
-      '(stateSB, k) ← cka.(ckaR) stateRB m ;;
-      #put (state_sb_loc cka) := stateSB ;;
-      @ret 'unit Datatypes.tt
+        (* for the case of t+1, 
+           we see that the behavior is captured by the default case *)
+      else
+        stateS ← get send_loc cka ;;
+        '(stateR', m, k) ← cka.(ckaS) stateS ;;
+
+        (* Receive *)
+        stateR ← get rcv_loc cka ;;
+        '(stateS', k) ← cka.(ckaR) stateR m ;;
+
+        #put (rcv_loc cka) := stateR' ;;
+        #put (send_loc cka) := stateS' ;;
+
+        @ret ('mes cka × 'key cka) (m, k)
     }
   ].
   
 Notation inv0 t_max := (
   heap_ignore (fset[::mga_loc])
-  ⋊ triple_rhs (epoch_a) (state_sb_loc cka) mga_loc
+  ⋊ triple_rhs (epoch_loc) (send_loc cka) mga_loc
       (λ t r a, t = t_max.-1 → Some r = a)
 ).
   
@@ -271,16 +225,40 @@ Theorem cka_pcs_ddh_perf b t :
 
 Proof.
   nssprove_share. eapply prove_perfect.
-  Search precond.
-  Search triple_rhs.
   apply (eq_rel_perf_ind _ _ (inv0 t)).
-  1:admit.
-  simplify_eq_rel x.
-  2:{}
-  - ssprove_sync.
-  intros a.
-  ssprove_sync.
-  ssprove_sync.
-  ssprove_sync.
+  1:ssprove_invariant.
+  - simpl. 
+    fset_solve.
+  - simpl.
+    left; fset_solve.
+  - simpl.
+    left; fset_solve.
+  - simpl.
+    right.
+    left. 
+    fset_solve.
+    right.
+    left.
+    admit.
+  - admit.
+  - simplify_eq_rel x.
+    rewrite /init -lock //=.
+    apply r_get_vs_get_remember.
+    1: ssprove_invariant.
+    move=> //= pk.
+    destruct pk.
+    1: {
+      apply r_const_sample_L.
+      1: apply LosslessOp_uniform.
+      intros x0.
+      rewrite code_link_bind //=.
+      admit.
+      apply r_ret.
+      intros s0 s1 H.
+      split; [ done | apply H ].
+    }
+    ssprove_sync.
+    ssprove_sync.
+    ssprove_sync.
   
 Qed.
