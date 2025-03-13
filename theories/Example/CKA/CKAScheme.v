@@ -153,111 +153,68 @@ Definition CORR1 (K : cka_scheme) :
 
 Definition CORR K b := if b then CORR0 K else CORR1 K.
 
-
-Definition INIT := 3%N.
-Definition SEND_A := 4%N.
-Definition RCV_A := 5%N.
-Definition CHALL_A := 6%N.
-Definition SEND_B := 7%N.
-Definition RCV_B := 8%N.
-Definition CHALL_B := 9%N.
+Definition EPOCH := 3%N.
 
 Definition I_CKA_PCS (K : cka_scheme) :=
   [interface
-    #val #[ INIT ] : 'unit → 'unit ;
-
-    #val #[ SEND_A ] : 'unit → ('mes K × 'key K) ;
-    #val #[ RCV_A ] : 'mes K → 'unit;
-
-    #val #[ SEND_B ] : 'unit → ('mes K × 'key K) ;
-    #val #[ RCV_B ] : 'mes K → 'unit 
+    #val #[ EPOCH ] : 'unit → ('mes K × 'key K)
   ].
 
-
-Definition epoch_a : Location := ('nat; 10%N).
-Definition epoch_b : Location := ('nat; 11%N).
-
-Definition state_sa_loc (K: cka_scheme) : Location := ('stateS K; 13%N).
-Definition state_sb_loc (K: cka_scheme) : Location := ('stateS K; 14%N).
-Definition state_ra_loc (K: cka_scheme) : Location := ('stateR K; 15%N).
-Definition state_rb_loc (K: cka_scheme) : Location := ('stateR K; 16%N).
+Definition epoch_loc : Location := ('nat; 11%N).
+Definition send_loc (K: cka_scheme) : Location := ('stateS K; 13%N).
+Definition rcv_loc (K: cka_scheme) : Location := ('stateR K; 16%N).
 
 Definition CKA_PCS_locs (K : cka_scheme) :=
-  fset [:: state_sa_loc K ; state_sb_loc K ; state_ra_loc K ; state_rb_loc K ; epoch_a ; epoch_b].
+  fset [:: epoch_loc ; send_loc K ; rcv_loc K].
+
+Definition init K : raw_code 'unit :=
+  locked (epoch ← get epoch_loc ;;
+  match epoch with
+  | 0%N =>
+    '(pk, x) ← K.(keygen) ;;
+    #put (send_loc K) := pk ;;
+    #put (rcv_loc K) := x ;;
+
+    @ret 'unit Datatypes.tt
+  | _.+1 =>
+    @ret 'unit Datatypes.tt
+  end).
+
+#[export] Instance init_valid {K} {L : {fset Location}} {I : Interface}
+  : epoch_loc → ValidCode L I (init K).
+Proof.
+  intros H.
+  rewrite /init -lock.
+  ssprove_valid.
+Qed.
 
 Definition CKA_PCS (K : cka_scheme) b t :
   game (I_CKA_PCS K) :=
   [module CKA_PCS_locs K ;
-    #def #[ INIT ] (_ : 'unit) : 'unit {
-      '(pk, x) ← K.(keygen) ;;
+    #def #[ EPOCH ] (_ : 'unit) : ('mes K × 'key K) {
+      _ ← init K ;;
 
-      #put (state_sa_loc K) := pk ;;
-      #put (state_sb_loc K) := pk ;;
-      #put (state_ra_loc K) := x ;;
-      #put (state_rb_loc K) := x ;;
-
-      #put epoch_a := 0 ;;
-      #put epoch_b := 0 ;;
-
-      @ret 'unit Datatypes.tt
-    } ;
-
-    #def #[ SEND_A ] (_ : 'unit) : ('mes K × 'key K) {
-      epoch ← get epoch_a ;;
+      epoch ← get epoch_loc ;;
       let epoch_inc := epoch.+1 in
-      #put epoch_a := epoch_inc ;;
+      #put epoch_loc := epoch_inc ;;
 
-      stateSA ← get state_sa_loc K ;;
-      '(stateRA, m, k) ← K.(ckaS) stateSA ;;
-      #put (state_ra_loc K) := stateRA ;;
+      (* Send *)
+      stateS ← get send_loc K ;;
+      '(stateR', m, k) ← K.(ckaS) stateS ;;
+
+      (* Receive *)
+      stateR ← get rcv_loc K ;;
+      '(stateS', k) ← K.(ckaR) stateR m ;;
+
+      #put (rcv_loc K) := stateR' ;;
+      #put (send_loc K) := stateS' ;;
 
       if (t == epoch_inc) && ~~b then
         k' ← K.(sampleKey) ;;
         @ret ('mes K × 'key K) (m, k')
       else
         @ret ('mes K × 'key K) (m, k)
-    } ;
-
-    #def #[ RCV_A ] (m : 'mes K) : 'unit {
-      epoch ← get epoch_a ;;
-      #put epoch_a := epoch.+1 ;;
-
-      stateRA ← get state_ra_loc K ;;
-      '(stateSA, k) ← K.(ckaR) stateRA m ;;
-
-      #put (state_sa_loc K) := stateSA ;;
-
-      @ret 'unit Datatypes.tt
-    } ;
-
-    #def #[ SEND_B ] (_ : 'unit) : ('mes K × 'key K) {
-      epoch ← get epoch_b ;;
-      let epoch_inc := epoch.+1 in
-      #put epoch_b := epoch.+1 ;;
-
-      stateSB ← get state_sb_loc K ;;
-      '(stateRB, m, k) ← K.(ckaS) stateSB ;;
-
-      #put (state_rb_loc K) := stateRB ;;
-    
-      if (t == epoch_inc) && ~~b then
-        k' ← K.(sampleKey) ;;
-        @ret ('mes K × 'key K) (m, k')
-      else
-        @ret ('mes K × 'key K) (m, k)
-    } ;
-
-    #def #[ RCV_B ] (m : 'mes K) : 'unit {
-      epoch ← get epoch_b ;;
-      #put epoch_b := epoch.+1 ;;
-
-      stateRB ← get state_rb_loc K ;;
-      '(stateSB, k) ← K.(ckaR) stateRB m ;;
-
-      #put (state_sb_loc K) := stateSB ;;
-
-      @ret 'unit Datatypes.tt
-    } 
+    }
  ].
   
 End CKAscheme.
