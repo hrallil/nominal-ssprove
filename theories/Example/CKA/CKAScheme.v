@@ -204,7 +204,7 @@ Definition CKA_PCS (K : cka_scheme) b t :
       (* Receive *)
       stateR ← get rcv_loc K ;;
       '(stateS', k) ← K.(ckaR) stateR m ;;
-
+      
       #put (rcv_loc K) := stateR' ;;
       #put (send_loc K) := stateS' ;;
 

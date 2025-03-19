@@ -141,7 +141,7 @@ Notation init' := (
 end). 
 
 Notation send epoch_inc t := (
-  if epoch_inc == t.-1 then
+  if epoch_inc.+1  == t then
     #import {sig #[ GETA ] : 'unit → 'el } as GETA ;;
     m ← GETA tt ;;
     stateR ← get rcv_loc cka ;;
@@ -216,42 +216,61 @@ Definition RED t :
 Notation inv0 t_max := (
   heap_ignore (fset[::mga_loc])
   ⋊ triple_rhs (epoch_loc) (send_loc cka) mga_loc
-      (λ t r a, t = t_max.-1 → Some r = a)
+      (λ t r a, t.+1  = t_max → Some r = a)
 ).
   
 
-Theorem cka_pcs_ddh_perf b t :
+Theorem cka_pcs_ddh_perf b t : (t > 1)%N →
   perfect (I_CKA_PCS cka)(CKA_PCS cka b t)(RED t ∘ DDH b).
 
 Proof.
-  nssprove_share. eapply prove_perfect.
+  nssprove_share. 
+  intros.
+  eapply prove_perfect.
   apply (eq_rel_perf_ind _ _ (inv0 t)).
   1:ssprove_invariant.
-  - simpl. 
+  1-4: simpl.
+  - fset_solve.
+  - left; fset_solve.
+  - left; fset_solve.
+  - right. right. 
     fset_solve.
-  - simpl.
-    left; fset_solve.
-  - simpl.
-    left; fset_solve.
-  - simpl.
-    right.
-    left. 
-    fset_solve.
-    right.
-    left.
-    admit.
-  - admit.
+  - intros. 
+    rewrite get_empty_heap//= in H0.
+    rewrite H0 ltnn // in H.
   - simplify_eq_rel x.
     rewrite /init -lock //=.
     apply r_get_vs_get_remember.
     1: ssprove_invariant.
-    move=> //= pk.
-    destruct pk.
+    move=> //= epoch.
+    destruct epoch.
     1: {
-      apply r_const_sample_L.
-      1: apply LosslessOp_uniform.
-      intros x0.
-      rewrite code_link_bind //=.
+      ssprove_code_simpl.
+      simpl.
+      ssprove_sync.
+      intros a.
+      ssprove_swap_lhs 1%N.
+      ssprove_swap_lhs 0%N.
+      ssprove_swap_rhs 1%N.
+      ssprove_swap_rhs 0%N.
+      eapply r_get_remind_lhs.
+      1: exact _.
+      eapply r_get_remind_rhs.
+      1: exact _.
+      ssprove_swap_lhs 2%N.
+      ssprove_swap_lhs 1%N.
+      ssprove_contract_put_get_lhs.
+      ssprove_swap_lhs 3%N.
+      ssprove_swap_lhs 2%N.
+      ssprove_swap_lhs 0%N.
+      ssprove_swap_lhs 1%N.
+      ssprove_contract_put_get_lhs.
+      ssprove_swap_lhs 1%N.
+      ssprove_swap_lhs 0%N.
+      
+      eapply r_put_lhs.
+      eapply r_put_lhs.
+      eapply r_get_lhs.
       admit.
       apply r_ret.
       intros s0 s1 H.
