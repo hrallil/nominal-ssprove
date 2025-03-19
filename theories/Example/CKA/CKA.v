@@ -140,26 +140,6 @@ Notation init' := (
     @ret 'unit Datatypes.tt
 end). 
 
-Notation send epoch_inc t := (
-  if epoch_inc.+1  == t then
-    #import {sig #[ GETA ] : 'unit → 'el } as GETA ;;
-    m ← GETA tt ;;
-    stateR ← get rcv_loc cka ;;
-    @ret  (m, op_exp m stateR)
-    
-  else if epoch_inc == t then 
-    #import {sig #[ GETBC ] : 'unit → 'el × 'el } as GETBC ;;
-    '(m, k) ← GETBC tt ;; 
-     @ret (m, k)
-
-    (* for the case of t+1, 
-       we see that the behavior is captured by the default case *)
-  else
-    stateS ← get send_loc cka ;;
-    '(stateR', m, k) ← cka.(ckaS) stateS ;;
-    @ret (m, k)
-).
-
 Definition RED t :
   module I_DDH (I_CKA_PCS cka) :=
   [module fset [:: epoch_loc ; send_loc cka ; rcv_loc cka] ;
@@ -171,7 +151,7 @@ Definition RED t :
       #put epoch_loc := epoch_inc ;;
 
       (* Send *)
-      if epoch_inc == t.-1 then
+      if epoch_inc.+1 == t then
         #import {sig #[ GETA ] : 'unit → 'el } as GETA ;;
         m ← GETA tt ;;
         stateR ← get rcv_loc cka ;;
@@ -248,7 +228,7 @@ Proof.
       ssprove_code_simpl.
       simpl.
       ssprove_sync.
-      intros a.
+      intros x_init.
       ssprove_swap_lhs 1%N.
       ssprove_swap_lhs 0%N.
       ssprove_swap_rhs 1%N.
@@ -267,15 +247,71 @@ Proof.
       ssprove_contract_put_get_lhs.
       ssprove_swap_lhs 1%N.
       ssprove_swap_lhs 0%N.
-      
+      (*      
       eapply r_put_lhs.
       eapply r_put_lhs.
-      eapply r_get_lhs.
+      eapply r_put_lhs.
+      eapply r_put_rhs.
+      eapply r_put_rhs.
+      eapply r_put_rhs.*)
+      destruct ((t == 1%N)%B && ~~b) eqn:E1.
+      1: {
+        ssprove_swap_rhs 1%N.
+        ssprove_swap_rhs 0%N.
+        destruct ((2%N == t)%B) eqn:E2.
+        1: {
+          ssprove_swap_rhs 4%N.
+          ssprove_swap_rhs 3%N.
+          ssprove_swap_rhs 1%N.
+          ssprove_swap_rhs 0%N.
+          ssprove_swap_rhs 2%N.  
+          ssprove_swap_rhs 1%N. 
+          ssprove_contract_put_get_rhs.
+          ssprove_swap_rhs 4%N.
+          ssprove_swap_rhs 3%N.
+          ssprove_swap_rhs 2%N.
+          ssprove_swap_rhs 1%N.
+          ssprove_contract_put_get_rhs.
+          ssprove_swap_rhs 0%N.
+          apply r_put_vs_put.
+          apply r_put_vs_put.
+          apply r_put_vs_put.
+          ssprove_sync => a.
+          ssprove_swap_rhs 0%N.
+          ssprove_swap_lhs 0%N.
+          apply r_put_vs_put.
+          apply r_put_rhs.
+          apply r_put_lhs.
+          apply r_const_sample_L.
+          1: apply LosslessOp_uniform.
+          intros x0.
+          ssprove_restore_mem.
+          1: {
+            ssprove_invariant.
+            -
+            intros h0 h1 [[H0 H1] H2].
+            admit.
+            - intros t1. reflexivity.
+          }
+        }
+        
+        1: {
+          eapply r_get_remind_rhs.
+          1: exact _.
+          ssprove_restore_mem.
+          1: {
+            ssprove_invariant.
+            admit.
+          }
+        }
+      }
+
       admit.
       apply r_ret.
       intros s0 s1 H.
       split; [ done | apply H ].
     }
+    admit.
     ssprove_sync.
     ssprove_sync.
     ssprove_sync.
