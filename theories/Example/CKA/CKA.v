@@ -247,15 +247,56 @@ Proof.
       ssprove_contract_put_get_lhs.
       ssprove_swap_lhs 1%N.
       ssprove_swap_lhs 0%N.
-      (*      
-      eapply r_put_lhs.
-      eapply r_put_lhs.
-      eapply r_put_lhs.
-      eapply r_put_rhs.
-      eapply r_put_rhs.
-      eapply r_put_rhs.*)
       destruct ((t == 1%N)%B && ~~b) eqn:E1.
-      1: {
+      2: {
+         destruct ((2%N == t)%B) eqn:E2.
+         1:{
+           ssprove_swap_rhs 0%N.
+           ssprove_swap_rhs 4%N.
+           ssprove_swap_rhs 3%N.
+           ssprove_swap_rhs 2%N.
+           ssprove_swap_rhs 1%N.
+           ssprove_contract_put_get_rhs.
+           ssprove_swap_rhs 4%N.
+           ssprove_swap_rhs 3%N.
+           ssprove_swap_rhs 2%N.
+           ssprove_swap_rhs 1%N.
+           ssprove_contract_put_get_rhs.
+           ssprove_swap_lhs 0%N.
+           apply r_put_vs_put.
+           ssprove_swap_lhs 0%N.
+           apply r_put_vs_put.
+           apply r_put_vs_put.
+           ssprove_sync => a.
+           apply r_put_vs_put.
+           apply r_put_vs_put.
+           ssprove_restore_mem.
+           - admit. (* Memory *) 
+           - admit. (* ret (g^a , g^a*x) = ret (g^a , g^a*x) && inv0 *) 
+         }
+         destruct ((1%N == t)%B) eqn:E3.
+           1: admit. (* IDK *)
+           ssprove_swap_rhs 2%N.
+           ssprove_swap_rhs 1%N.
+           ssprove_contract_put_get_rhs.
+           ssprove_swap_rhs 0%N.
+           ssprove_swap_rhs 3%N.
+           ssprove_swap_rhs 2%N.
+           ssprove_swap_rhs 1%N.
+           ssprove_contract_put_get_rhs.
+           ssprove_swap_lhs 0%N.
+           apply r_put_vs_put.
+           ssprove_swap_lhs 0%N.
+           apply r_put_vs_put.
+           apply r_put_vs_put.
+           ssprove_sync => a.
+           apply r_put_vs_put.
+           apply r_put_vs_put.
+           ssprove_restore_mem.
+           - admit. (* Memory *)
+           - admit. (* ret (g^a , g^a*x) = ret (g^a , g^a*x) && inv0 *) 
+        }
+      
         ssprove_swap_rhs 1%N.
         ssprove_swap_rhs 0%N.
         destruct ((2%N == t)%B) eqn:E2.
