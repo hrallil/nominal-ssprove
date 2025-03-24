@@ -205,7 +205,8 @@ Definition CKA_PCS (K : cka_scheme) b t :
       stateR ← get rcv_loc K ;;
       '(stateS', k) ← K.(ckaR) stateR m ;;
       
-      #put (rcv_loc K) := stateR' ;;
+      (*#put (rcv_loc K) := stateR' ;;*)
+      (*#put (send_loc K) := stateS' ;;*)
       #put (send_loc K) := stateS' ;;
 
       if (t == epoch_inc) && ~~b then
