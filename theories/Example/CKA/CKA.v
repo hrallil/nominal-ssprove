@@ -154,13 +154,13 @@ Definition RED t :
       if epoch_inc.+1 == t then
         #import {sig #[ GETA ] : 'unit → 'el } as GETA ;;
         m ← GETA tt ;;
-        stateR ← get rcv_loc cka ;; 
+        stateR ← get rcv_loc cka ;;
 
         (* Receive *)
         stateR ← get rcv_loc cka ;;
         '(stateS', k) ← cka.(ckaR) stateR m ;;
 
-        (*#put (send_loc cka) := stateS' ;;*)
+        #put (send_loc cka) := stateS' ;;
 
         @ret ('mes cka × 'key cka) (m, k)
         
@@ -172,7 +172,7 @@ Definition RED t :
         stateR ← get rcv_loc cka ;;
         '(stateS', k') ← cka.(ckaR) stateR m ;;
 
-        (*#put (send_loc cka) := stateS' ;;*)
+        #put (send_loc cka) := stateS' ;;
 
         @ret ('mes cka × 'key cka) (m, k)
 
@@ -186,8 +186,8 @@ Definition RED t :
         stateR ← get rcv_loc cka ;;
         '(stateS', k) ← cka.(ckaR) stateR m ;;
 
-        (*#put (rcv_loc cka) := stateR' ;;*)
-        (*#put (send_loc cka) := stateS' ;;*)
+        #put (rcv_loc cka) := stateR' ;;
+        #put (send_loc cka) := stateS' ;;
 
         @ret ('mes cka × 'key cka) (m, k)
     }
@@ -262,34 +262,17 @@ Proof.
            ssprove_swap_rhs 2%N.
            ssprove_swap_rhs 1%N.
            ssprove_contract_put_get_rhs.
-           ssprove_swap_rhs 2%N.
-           ssprove_swap_rhs 1%N.
-           ssprove_swap_rhs 0%N.
-           ssprove_swap_lhs 2%N.
-           ssprove_swap_lhs 1%N.
-           ssprove_swap_lhs 0%N.
-           ssprove_sync => x'.
            ssprove_swap_lhs 0%N.
            apply r_put_vs_put.
            ssprove_swap_lhs 0%N.
            apply r_put_vs_put.
            apply r_put_vs_put.
-           (* apply r_put_vs_put.
+           ssprove_sync => a.
            apply r_put_vs_put.
-           ssprove_restore_mem. 
-           - ssprove_invariant.
-             1: { intros h1 h2 h3 h4 h5.
-                  Check get_heap_simpl.
-                  by get_heap_simpl. }  (* Memory  ssprove_contract_put*) 
-           - by apply r_ret. (* ret (g^a , g^a*x) = ret (g^a , g^a*x) && inv0  *) *)
            apply r_put_vs_put.
            ssprove_restore_mem.
-           - ssprove_invariant.
-              + intros h1 h2 h3 h4 h5.
-                admit.
-            intros h.
-            reflexivity.
-              
+           - admit. (* Memory *) 
+           - admit. (* ret (g^a , g^a*x) = ret (g^a , g^a*x) && inv0 *) 
          }
          destruct ((1%N == t)%B) eqn:E3.
            1: admit. (* IDK *)
@@ -311,7 +294,7 @@ Proof.
            apply r_put_vs_put.
            ssprove_restore_mem.
            - admit. (* Memory *)
-           - by apply r_ret. (* ret (g^a , g^a*x) = ret (g^a , g^a*x) && inv0 *) 
+           - admit. (* ret (g^a , g^a*x) = ret (g^a , g^a*x) && inv0 *) 
         }
       
         ssprove_swap_rhs 1%N.
