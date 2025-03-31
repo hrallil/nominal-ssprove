@@ -193,13 +193,43 @@ Definition RED t :
         @ret ('mes cka × 'key cka) (m, k)
     }
   ].
+
+Class triple_lrr (l l' l'' : Location) R pre :=
+  is_triple_lrr : ∀ s₀ s₁,
+    pre (s₀, s₁) → R (get_heap s₀ l) (get_heap s₁ l') (get_heap s₁ l'').
+
+Lemma Remembers_triple_lrr {l l' l''} {a a' a''} {R} {pre} :
+  Remembers_lhs l a pre →
+  Remembers_rhs l' a' pre →
+  Remembers_rhs l'' a'' pre →
+  triple_lrr l l' l'' R pre →
+  ∀ s, pre s →
+  R a a' a''.
+Proof.
+  intros H H' H'' Hi [s0 s1] Hp.
+  rewrite -(H _ _ Hp) -(H' _ _ Hp) -(H'' _ _ Hp).
+  auto.
+Qed.
+
+Lemma triple_lrr_conj_left {l l' l'' R} {pre spre : precond} :
+  triple_lrr l l' l'' R spre → triple_lrr l l' l'' R (pre ⋊ spre).
+Proof. intros C s0 s1 [H0 H1]. by apply C. Qed.
+
+Lemma triple_lrr_conj_right {l l' l'' R} {pre spre : precond} :
+  triple_lrr l l' l'' R pre → triple_lrr l l' l'' R (pre ⋊ spre).
+Proof. intros C s0 s1 [H0 H1]. by apply C. Qed.
   
 Notation inv0 t_max := (
-  heap_ignore (fset[::mga_loc; rcv_loc cka])
+  heap_ignore (fset[::mga_loc])
   ⋊ triple_rhs (epoch_loc) (send_loc cka) mga_loc
       (λ t s a, t.+1  = t_max → Some s = a)
 ).
-  
+
+Notation inv1 t_max := (
+  heap_ignore (fset[::mga_loc])
+  ⋊ triple_lrr (rcv_loc cka) (rcv_loc cka) epoch_loc
+    (λ rl rr t, t.+1  = t_max → rl != rr)
+).
 
 Theorem cka_pcs_ddh_perf b t : (t > 1)%N →
   perfect (I_CKA_PCS cka)(CKA_PCS cka b t)(RED t ∘ DDH b).
@@ -208,6 +238,8 @@ Proof.
   nssprove_share. 
   intros.
   eapply prove_perfect.
+  Check triple_lrr.
+  Check triple_rhs.
   apply (eq_rel_perf_ind _ _ (inv0 t)).
   1:ssprove_invariant.
   1-4: simpl.
