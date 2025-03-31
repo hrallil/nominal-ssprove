@@ -99,10 +99,10 @@ Proof.
   (*Fix heap_ignore, shouldnt be here*)
   apply (eq_rel_perf_ind _ _ (heap_ignore (fset [::]))).
   1: ssprove_invariant; fset_solve.
-  simplify_eq_rel m.
+  simplify_eq_rel n.
   apply r_const_sample_L.
   1: apply LosslessOp_uniform.
-  induction m.
+  induction n.
   - simpl.
     intros x.
     apply r_ret => s0 s1.
@@ -115,10 +115,10 @@ Proof.
     1: apply LosslessOp_uniform.
     intros x'.
     unfold op_exp, op_g in *.
-    rewrite !otf_fto expgAC in IHm |- *.
+    rewrite !otf_fto expgAC in IHn |- *.
     rewrite eq_refl.
     simpl.
-    apply IHm.
+    apply IHn.
 Qed.
 
 Theorem perf_correct_cka : 
