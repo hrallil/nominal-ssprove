@@ -193,8 +193,13 @@ Definition RED t :
         @ret ('mes cka × 'key cka) (m, k)
     }
   ].
+  
+Definition triple_lrr (l₀ l₁ l₂ : Location) (R : l₀ → l₁ → l₂ → Prop)
+  : precond := λ '(h₀, h₁),
+    R (get_heap h₀ l₀) (get_heap h₁ l₁) (get_heap h₁ l₂).
 
-Class triple_lrr (l l' l'' : Location) R pre :=
+
+Class Triple_lrr (l l' l'' : Location) R pre :=
   is_triple_lrr : ∀ s₀ s₁,
     pre (s₀, s₁) → R (get_heap s₀ l) (get_heap s₁ l') (get_heap s₁ l'').
 
@@ -202,7 +207,7 @@ Lemma Remembers_triple_lrr {l l' l''} {a a' a''} {R} {pre} :
   Remembers_lhs l a pre →
   Remembers_rhs l' a' pre →
   Remembers_rhs l'' a'' pre →
-  triple_lrr l l' l'' R pre →
+  Triple_lrr l l' l'' R pre →
   ∀ s, pre s →
   R a a' a''.
 Proof.
@@ -212,17 +217,19 @@ Proof.
 Qed.
 
 Lemma triple_lrr_conj_left {l l' l'' R} {pre spre : precond} :
-  triple_lrr l l' l'' R spre → triple_lrr l l' l'' R (pre ⋊ spre).
+  Triple_lrr l l' l'' R spre → Triple_lrr l l' l'' R (pre ⋊ spre).
 Proof. intros C s0 s1 [H0 H1]. by apply C. Qed.
 
 Lemma triple_lrr_conj_right {l l' l'' R} {pre spre : precond} :
-  triple_lrr l l' l'' R pre → triple_lrr l l' l'' R (pre ⋊ spre).
+  Triple_lrr l l' l'' R pre → Triple_lrr l l' l'' R (pre ⋊ spre).
 Proof. intros C s0 s1 [H0 H1]. by apply C. Qed.
   
 Notation inv0 t_max := (
   heap_ignore (fset[::mga_loc])
   ⋊ triple_rhs (epoch_loc) (send_loc cka) mga_loc
       (λ t s a, t.+1  = t_max → Some s = a)
+  ⋊ triple_lrr (rcv_loc cka) (rcv_loc cka) epoch_loc
+      (λ rl rr t, t.+1  = t_max → rl != rr)
 ).
 
 Notation inv1 t_max := (
@@ -251,6 +258,19 @@ Proof.
   - intros. 
     rewrite get_empty_heap//= in H0.
     rewrite H0 ltnn // in H.
+  - eapply Build_SemiInvariant.
+    + intros s0 s1 l v.
+      move=> /negP H5 /negP H6.   
+      intros Q.
+      unfold triple_lrr.
+      do 4 try rewrite get_set_heap_neq //.
+      1-3: apply /eqP; move=> h'; subst.
+      1-3: apply H6; simpl; fset_solve.
+    + simpl.
+      rewrite get_empty_heap//=.
+      intros h'.
+      subst.
+      done.
   - simplify_eq_rel x.
     rewrite /init -lock //=.
     apply r_get_vs_get_remember.
