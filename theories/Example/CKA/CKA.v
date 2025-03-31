@@ -41,8 +41,9 @@ Definition cka : cka_scheme := {|
   
   ; sampleKey :=
     {code 
-      x ← sample uniform #|exp| ;;
-      ret (op_exp op_g x)
+      x1 ← sample uniform #|exp| ;;
+      x2 ← sample uniform #|exp| ;;
+      ret (op_exp (op_exp op_g x1) x2)
     }
   
   ; keygen := 
@@ -194,9 +195,9 @@ Definition RED t :
   ].
   
 Notation inv0 t_max := (
-  heap_ignore (fset[::mga_loc])
+  heap_ignore (fset[::mga_loc; rcv_loc cka])
   ⋊ triple_rhs (epoch_loc) (send_loc cka) mga_loc
-      (λ t r a, t.+1  = t_max → Some r = a)
+      (λ t s a, t.+1  = t_max → Some s = a)
 ).
   
 
@@ -240,27 +241,16 @@ Proof.
       ssprove_swap_lhs 2%N.
       ssprove_swap_lhs 1%N.
       ssprove_contract_put_get_lhs.
-      ssprove_swap_lhs 3%N.
-      ssprove_swap_lhs 2%N.
-      ssprove_swap_lhs 0%N.
-      ssprove_swap_lhs 1%N.
-      ssprove_contract_put_get_lhs.
-      ssprove_swap_lhs 1%N.
-      ssprove_swap_lhs 0%N.
+      ssprove_swap_seq_lhs [:: 3%N; 2%N; 0%N; 1%N].
+      ssprove_contract_put_get_lhs.      
+      ssprove_swap_seq_lhs [:: 1%N; 0%N].
       destruct ((t == 1%N)%B && ~~b) eqn:E1.
       2: {
          destruct ((2%N == t)%B) eqn:E2.
          1:{
-           ssprove_swap_rhs 0%N.
-           ssprove_swap_rhs 4%N.
-           ssprove_swap_rhs 3%N.
-           ssprove_swap_rhs 2%N.
-           ssprove_swap_rhs 1%N.
+           ssprove_swap_seq_rhs [:: 0%N; 4%N; 3%N; 2%N; 1%N ].
            ssprove_contract_put_get_rhs.
-           ssprove_swap_rhs 4%N.
-           ssprove_swap_rhs 3%N.
-           ssprove_swap_rhs 2%N.
-           ssprove_swap_rhs 1%N.
+           ssprove_swap_seq_rhs [:: 4%N; 3%N; 2%N; 1%N ].
            ssprove_contract_put_get_rhs.
            ssprove_swap_lhs 0%N.
            apply r_put_vs_put.
@@ -271,18 +261,14 @@ Proof.
            apply r_put_vs_put.
            apply r_put_vs_put.
            ssprove_restore_mem.
-           - admit. (* Memory *) 
-           - admit. (* ret (g^a , g^a*x) = ret (g^a , g^a*x) && inv0 *) 
+           - ssprove_invariant. done. (* Memory *) 
+           - apply r_ret. done. 
          }
          destruct ((1%N == t)%B) eqn:E3.
            1: admit. (* IDK *)
-           ssprove_swap_rhs 2%N.
-           ssprove_swap_rhs 1%N.
+           ssprove_swap_seq_rhs [:: 2%N; 1%N ].
            ssprove_contract_put_get_rhs.
-           ssprove_swap_rhs 0%N.
-           ssprove_swap_rhs 3%N.
-           ssprove_swap_rhs 2%N.
-           ssprove_swap_rhs 1%N.
+           ssprove_swap_seq_rhs [:: 0%N; 3%N; 2%N; 1%N ].
            ssprove_contract_put_get_rhs.
            ssprove_swap_lhs 0%N.
            apply r_put_vs_put.
@@ -293,25 +279,20 @@ Proof.
            apply r_put_vs_put.
            apply r_put_vs_put.
            ssprove_restore_mem.
-           - admit. (* Memory *)
-           - admit. (* ret (g^a , g^a*x) = ret (g^a , g^a*x) && inv0 *) 
+           - ssprove_invariant.
+             intros h0 h1 [[H0 H1] H2].
+             rewrite //= /triple_rhs.
+             by get_heap_simpl.
+             done. (* Memory *)
+           - apply r_ret. done. (* ret (g^a , g^a*x) = ret (g^a , g^a*x) && inv0 *) 
         }
       
-        ssprove_swap_rhs 1%N.
-        ssprove_swap_rhs 0%N.
+        ssprove_swap_seq_rhs [:: 1%N; 0%N].
         destruct ((2%N == t)%B) eqn:E2.
         1: {
-          ssprove_swap_rhs 4%N.
-          ssprove_swap_rhs 3%N.
-          ssprove_swap_rhs 1%N.
-          ssprove_swap_rhs 0%N.
-          ssprove_swap_rhs 2%N.  
-          ssprove_swap_rhs 1%N. 
+          ssprove_swap_seq_rhs [:: 4%N; 3%N; 1%N; 0%N; 2%N; 1%N].
           ssprove_contract_put_get_rhs.
-          ssprove_swap_rhs 4%N.
-          ssprove_swap_rhs 3%N.
-          ssprove_swap_rhs 2%N.
-          ssprove_swap_rhs 1%N.
+          ssprove_swap_seq_rhs [:: 4%N; 3%N; 2%N; 1%N].
           ssprove_contract_put_get_rhs.
           ssprove_swap_rhs 0%N.
           apply r_put_vs_put.
@@ -329,32 +310,34 @@ Proof.
           ssprove_restore_mem.
           1: {
             ssprove_invariant.
-            -
-            intros h0 h1 [[H0 H1] H2].
-            admit.
+            - intros h0 h1 [[H0 H1] H2].
+            admit. (* Memory *)
             - intros t1. reflexivity.
           }
         }
-        
-        1: {
-          eapply r_get_remind_rhs.
-          1: exact _.
-          ssprove_restore_mem.
-          1: {
-            ssprove_invariant.
-            admit.
-          }
+        destruct ((1%N == t)%B) eqn:E3.
+        (* Case: random sample vs DDH reduction getBC ( t == t* )*)  
+        1: { 
+          admit.
         }
-      }
-
-      admit.
-      apply r_ret.
-      intros s0 s1 H.
-      split; [ done | apply H ].
+        
+        (* random sample <=> else case *)
+        ssprove_swap_seq_rhs [:: 0%N; 2%N; 1%N].
+        ssprove_contract_put_get_rhs. 
+        ssprove_swap_seq_rhs [:: 2%N; 1%N; 0%N].
+        ssprove_swap_seq_lhs [:: 2%N; 1%N; 0%N].
+        ssprove_sync => x_gen.
+        ssprove_swap_seq_rhs [:: 1%N; 0%N; 2%N; 1%N].
+        ssprove_contract_put_get_rhs.
+        ssprove_swap_rhs 1%N.
+        ssprove_swap_rhs 0%N.
+        apply r_put_vs_put.
+        apply r_put_vs_put.
+        apply r_put_vs_put.
+        apply r_put_vs_put.
+        apply r_put_vs_put.
+        ssprove_restore_mem.
+        - admit. (* Memory *)
+        - admit. (* a = g^(x^x_init) *)
     }
-    admit.
-    ssprove_sync.
-    ssprove_sync.
-    ssprove_sync.
-  
 Qed.
