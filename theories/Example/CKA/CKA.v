@@ -395,23 +395,21 @@ Proof.
           admit. (* Now we need to show DDH indistinguishability *)
       (* Normal execution *)
       * apply r_ret.
+        Check rpre_learn.
         admit.        (* rpre_learn to show that rcv_l and rcv_r are the same *)
         (*eapply r_get_remember_rhs => rcv_r.
         eapply r_get_remember_lhs => rcv_l. *)
-     (* Not init epoch ∧  *)
+     
+     (* Not init epoch ∧ challenging epoch (t==t* ) *)
      + ssprove_swap_lhs 0%N.
        eapply r_get_remember_lhs => __.
        apply r_forget_lhs.
        apply r_put_vs_put.
        destruct (epoch.+2 == t)%B; destruct (b); simpl.
-       - admit.
-       - admit.
-       - admit.
-       - admit.
-       
-       
-
-      
+       * admit.
+       * admit.
+       * admit.
+       * admit.
 Qed.
 
 
