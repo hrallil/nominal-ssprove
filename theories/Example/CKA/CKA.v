@@ -233,7 +233,7 @@ Notation inv0 t_max := (
   ⋊ triple_lrr (rcv_loc cka) (mga_loc) epoch_loc
       (λ rl mga t, t.+1 = t_max →  Some(op_exp op_g rl) = mga )
   ⋊ triple_lrr (rcv_loc cka) (rcv_loc cka) epoch_loc
-      (λ rl rr t, ¬(t.+1  = t_max) → rl = rr)
+      (λ rl rr t, ¬(t.+1 = t_max ∨ t = t_max) → rl = rr)
 ).
 
 Theorem cka_pcs_ddh_perf b t : (t > 1)%N →
@@ -337,6 +337,7 @@ Proof.
                destruct H3.
                get_heap_simpl.
                move: E2 => /eqP.
+               left.
                done.
             (* init epoch ∧ else case *)
           * ssprove_swap_seq_rhs [:: 3%N; 2%N; 1%N; 0%N].
@@ -399,7 +400,16 @@ Proof.
           unfold triple_lrr in I2. 
           rewrite I4 I5 I6 in I2.
           apply I2.
-          move: E1 => /eqP E1. subst. done. }
+          move: E1 => /eqP E1.
+          subst.
+          rewrite /eqP.
+          move => e.
+          destruct e.
+          - discriminate H0. Search ¬(_ ∨ _).
+            destruct.
+            left.
+            done. 
+       }
        intros rcv_fact. 
        apply r_put_vs_put.
        ssprove_swap_lhs 0%N.
@@ -411,7 +421,14 @@ Proof.
        * simpl.
          rewrite rcv_fact.
          ssprove_restore_mem.
-         -- admit.
+         -- ssprove_invariant.
+            ++ intros h0 h1 [[[[H0 H5] H4] H1] H2] H3.
+               get_heap_simpl.
+               done.
+            ++ intros h0 h1 [[[[H0 H5] H4] H1] H2] H3.
+               move: H3.
+               get_heap_simpl.
+               move: E1 => /eqP //.
          -- apply r_ret. done.
        * move: E1 => /eqP E1. subst. simpl. symmetry. apply /eqP. done.
      
@@ -435,7 +452,30 @@ Proof.
        intros mga_fact.
        subst.
        simpl.
-       admit.
+       ssprove_swap_lhs 0%N.
+       ssprove_swap_seq_rhs [:: 1%N; 0%N].
+       ssprove_sync => a0.
+       ssprove_swap_seq_rhs [:: 1%N; 0%N].
+       apply r_get_remember_rhs => ___.
+       apply r_put_vs_put.
+       apply r_put_vs_put.
+       apply r_put_vs_put.
+       ssprove_restore_mem.
+         -- ssprove_invariant.
+            ++ intros h0 h1 [[[[[H0 H1] H2] H3] H4] H5] H6.
+               move: H6.
+               get_heap_simpl.
+               move: E1 => /eqP //.
+            ++ intros h0 h1 [[[[[H0 H1] H2] H3] H4] H5] H6.
+               move: H0.
+               get_heap_simpl.
+               rewrite //= /triple_lrr.
+               get_heap_simpl.
+               admit.
+         -- apply r_ret.
+            unfold op_exp, op_g in *.
+            rewrite !otf_fto expgAC.
+            done.
        * ssprove_swap_lhs 1%N.
          ssprove_swap_lhs 0%N.
          ssprove_swap_rhs 0%N.
