@@ -41,9 +41,8 @@ Definition cka : cka_scheme := {|
   
   ; sampleKey :=
     {code 
-      x1 ← sample uniform #|exp| ;;
-      x2 ← sample uniform #|exp| ;;
-      ret (op_exp (op_exp op_g x1) x2)
+      x ← sample uniform #|el|;;
+      ret x
     }
   
   ; keygen := 
@@ -98,7 +97,7 @@ Theorem correct_cka : CORR0 cka ≈₀ CORR1 cka.
 Proof.
   (*Fix heap_ignore, shouldnt be here*)
   apply (eq_rel_perf_ind _ _ (heap_ignore (fset [::]))).
-  1: ssprove_invariant; fset_solve.
+  1: ssprove_invariant; fset_solve. 
   simplify_eq_rel n.
   apply r_const_sample_L.
   1: apply LosslessOp_uniform.
@@ -225,28 +224,19 @@ Lemma triple_lrr_conj_right {l l' l'' R} {pre spre : precond} :
 Proof. intros C s0 s1 [H0 H1]. by apply C. Qed.
   
 Notation inv0 t_max := (
-  heap_ignore (fset[::mga_loc])
+  heap_ignore (fset[::mga_loc; rcv_loc cka])
   ⋊ triple_rhs (epoch_loc) (send_loc cka) mga_loc
       (λ t s a, t.+1  = t_max → Some s = a)
   ⋊ triple_lrr (rcv_loc cka) (rcv_loc cka) epoch_loc
-      (λ rl rr t, t.+1  = t_max → rl != rr)
-).
-
-Notation inv1 t_max := (
-  heap_ignore (fset[::mga_loc])
-  ⋊ triple_lrr (rcv_loc cka) (rcv_loc cka) epoch_loc
-    (λ rl rr t, t.+1  = t_max → rl != rr)
+      (λ rl rr t, ¬(t.+1  = t_max) → rl = rr)
 ).
 
 Theorem cka_pcs_ddh_perf b t : (t > 1)%N →
   perfect (I_CKA_PCS cka)(CKA_PCS cka b t)(RED t ∘ DDH b).
-
-Proof.
+Proof. 
   nssprove_share. 
   intros.
   eapply prove_perfect.
-  Check triple_lrr.
-  Check triple_rhs.
   apply (eq_rel_perf_ind _ _ (inv0 t)).
   1:ssprove_invariant.
   1-4: simpl.
@@ -266,22 +256,23 @@ Proof.
       do 4 try rewrite get_set_heap_neq //.
       1-3: apply /eqP; move=> h'; subst.
       1-3: apply H6; simpl; fset_solve.
-    + simpl.
+    + simpl. 
       rewrite get_empty_heap//=.
-      intros h'.
-      subst.
-      done.
+      (* intros h'.
+      destruct h'.
+      * subst.
+        done.
+      * subst.
+        done. *)
   - simplify_eq_rel x.
     rewrite /init -lock //=.
     apply r_get_vs_get_remember.
     1: ssprove_invariant.
     move=> //= epoch.
-    destruct epoch.
+    destruct epoch; ssprove_code_simpl; simpl.
+    (* Init epoch *)
     1: {
-      ssprove_code_simpl.
-      simpl.
-      ssprove_sync.
-      intros x_init.
+      ssprove_sync => x_init.
       ssprove_swap_lhs 1%N.
       ssprove_swap_lhs 0%N.
       ssprove_swap_rhs 1%N.
@@ -296,6 +287,137 @@ Proof.
       ssprove_swap_seq_lhs [:: 3%N; 2%N; 0%N; 1%N].
       ssprove_contract_put_get_lhs.      
       ssprove_swap_seq_lhs [:: 1%N; 0%N].
+      (* Cannot have t*==1 as we cannot challenge there *)
+      replace (t == 1%N)%B with false.
+      - replace (1%N == t)%B with false.
+        + simpl.
+          (* init epoch ∧ t=t*-1 (meaning ) *)
+          destruct ((2%N == t)%B) eqn:E2.
+          * ssprove_swap_seq_rhs [:: 2%N; 1%N; 0%N].
+            ssprove_swap_seq_lhs [:: 2%N; 1%N; 0%N].
+            ssprove_sync => a.
+            ssprove_swap_rhs 0%N.
+            ssprove_swap_seq_rhs [:: 3%N; 2%N; 1%N].
+            ssprove_contract_put_get_rhs.
+            ssprove_swap_seq_rhs [:: 3%N; 2%N; 1%N].
+            ssprove_contract_put_get_rhs.
+            ssprove_swap_lhs 0%N.
+            ssprove_swap_lhs 1%N.
+            ssprove_swap_lhs 2%N.
+            ssprove_swap_lhs 1%N.
+            ssprove_contract_put_lhs.
+            apply r_put_vs_put.
+            ssprove_swap_lhs 1%N.
+            ssprove_contract_put_lhs.
+            ssprove_swap_rhs 2%N.
+            ssprove_swap_rhs 1%N.
+            ssprove_contract_put_rhs.
+            apply r_put_vs_put.
+            apply r_put_vs_put.
+            apply r_put_rhs.
+            ssprove_restore_mem.
+            2: by apply r_ret.
+            ssprove_invariant.
+            -- done.
+            -- intros h0 h1 [[H0 H1] H2] H3.
+               get_heap_simpl.
+               destruct H3.
+               get_heap_simpl.
+               move: E2 => /eqP.
+               done.
+            (* init epoch ∧ else case *)
+          * ssprove_swap_seq_rhs [:: 3%N; 2%N; 1%N; 0%N].
+            ssprove_swap_seq_lhs [:: 2%N; 1%N; 0%N].
+            ssprove_sync => a.
+            ssprove_swap_seq_rhs [:: 2%N; 1%N].
+            ssprove_contract_put_get_rhs.
+            ssprove_swap_rhs 0%N.
+            ssprove_swap_seq_rhs [:: 2%N; 1%N].
+            ssprove_contract_put_get_rhs.
+            ssprove_swap_seq_rhs [:: 2%N; 1%N].
+            ssprove_contract_put_rhs.
+            ssprove_swap_rhs 0%N.
+            ssprove_swap_seq_rhs [:: 2%N; 1%N].
+            ssprove_contract_put_rhs.
+            ssprove_swap_lhs 0%N.
+            ssprove_swap_seq_lhs [:: 2%N; 1%N].
+            ssprove_contract_put_lhs.
+            ssprove_swap_seq_lhs [:: 1%N; 0%N; 2%N; 1%N].
+            ssprove_contract_put_lhs.
+            apply r_put_vs_put.
+            apply r_put_vs_put.
+            apply r_put_vs_put.
+            ssprove_restore_mem.
+            -- ssprove_invariant.
+              ++  intros h0 h1 [[H0 H1] H2] H3.
+                  move: H3. 
+                  get_heap_simpl.
+                  move: E2 => /eqP.
+                  done.
+              ++  intros h0 h1 [[H0 H1] H2] H3.
+                  get_heap_simpl.
+                  done.
+            -- apply r_ret. done.
+        +  symmetry. apply /eqP. intro h. subst. done.  
+      -  symmetry. apply /eqP. intro h. subst. done.
+      }
+
+     (* None init epoch *)
+     eapply r_get_remind_lhs.
+     1: exact _.
+     eapply r_get_remind_rhs.
+     1: exact _.
+     
+     (* Not init epoch ∧ t = t*-1 *)
+     destruct (epoch.+3 == t)%B.
+     + ssprove_swap_seq_lhs [:: 1%N; 0%N].
+       ssprove_swap_rhs 0%N.
+       ssprove_sync => a.
+       ssprove_swap_seq_rhs [:: 1%N; 0%N; 2%N; 1%N].
+       ssprove_swap_seq_lhs [:: 0%N; 1%N].
+       eapply r_get_remember_lhs => __.
+       apply r_forget_lhs.
+       eapply r_get_remember_rhs => ___.
+       apply r_forget_rhs.
+       eapply r_get_remember_lhs => rcv_l.
+       eapply r_get_remember_rhs => rcv_r.
+       apply r_put_vs_put.
+       ssprove_swap_lhs 0%N.
+       ssprove_swap_rhs 0%N.
+       apply r_put_vs_put.
+       apply r_put_rhs.
+       apply r_put_lhs.
+       (* Random saple of key *)
+       destruct ((epoch.+2 == t) && ~~ b)%B.
+       *  apply r_const_sample_L.
+          1: apply LosslessOp_uniform.
+          intros x1.
+          admit. (* Now we need to show DDH indistinguishability *)
+      (* Normal execution *)
+      * apply r_ret.
+        admit.        (* rpre_learn to show that rcv_l and rcv_r are the same *)
+        (*eapply r_get_remember_rhs => rcv_r.
+        eapply r_get_remember_lhs => rcv_l. *)
+     (* Not init epoch ∧  *)
+     + ssprove_swap_lhs 0%N.
+       eapply r_get_remember_lhs => __.
+       apply r_forget_lhs.
+       apply r_put_vs_put.
+       destruct (epoch.+2 == t)%B; destruct (b); simpl.
+       - admit.
+       - admit.
+       - admit.
+       - admit.
+       
+       
+
+      
+Qed.
+
+
+ (*
+     ssprove_code_simpl.
+     simpl.
       destruct ((t == 1%N)%B && ~~b) eqn:E1.
       2: {
          destruct ((2%N == t)%B) eqn:E2.
@@ -313,11 +435,20 @@ Proof.
            apply r_put_vs_put.
            apply r_put_vs_put.
            ssprove_restore_mem.
-           - ssprove_invariant. done. (* Memory *) 
+           - ssprove_invariant.
+            + intros h0 h1 [[H0 H1] H2] H3.
+              admit. (* Memory rcv_loc is not updated on the RED side *)
+            + done.  
+            + intros h0 h1 [[H0 H1] H2] H3.
+              admit. (* Memory  mga_loc and rcv_loc only set on one side each *)
            - apply r_ret. done. 
          }
          destruct ((1%N == t)%B) eqn:E3.
-           1: admit. (* IDK *)
+           1: {
+              destruct ((b)%B ) eqn:E7.
+              - admit. (* Were missing g^a *)
+              - admit. (* Were missing g^a *)
+           }
            ssprove_swap_seq_rhs [:: 2%N; 1%N ].
            ssprove_contract_put_get_rhs.
            ssprove_swap_seq_rhs [:: 0%N; 3%N; 2%N; 1%N ].
@@ -332,13 +463,13 @@ Proof.
            apply r_put_vs_put.
            ssprove_restore_mem.
            - ssprove_invariant.
-             intros h0 h1 [[H0 H1] H2].
-             rewrite //= /triple_rhs.
-             by get_heap_simpl.
-             done. (* Memory *)
-           - apply r_ret. done. (* ret (g^a , g^a*x) = ret (g^a , g^a*x) && inv0 *) 
+              +  intros h0 h1 [[H0 H1] H2] H3.
+                 rewrite //= /triple_rhs.
+                 admit. (* Memory one extra mga_loc *)
+              +  intros h0 h1 [[H0 H1] H2] H3.
+                 admit. (* Memory: some implication *)
+           - apply r_ret. done. 
         }
-      
         ssprove_swap_seq_rhs [:: 1%N; 0%N].
         destruct ((2%N == t)%B) eqn:E2.
         1: {
@@ -362,17 +493,20 @@ Proof.
           ssprove_restore_mem.
           1: {
             ssprove_invariant.
-            - intros h0 h1 [[H0 H1] H2].
-            admit. (* Memory *)
+            - intros h0 h1 [[H0 H1] H2] H3.
+              admit. (* Memory mga_loc and rcv_loc not matching *)
             - intros t1. reflexivity.
           }
         }
         destruct ((1%N == t)%B) eqn:E3.
         (* Case: random sample vs DDH reduction getBC ( t == t* )*)  
         1: { 
-          admit.
+            destruct ((b)%B ) eqn:E7.
+            - ssprove_swap_seq_lhs [:: 1%N; 0%N].
+              ssprove_swap_rhs 0%N.
+              admit. (* mga_loc is not sat in this case *)
+            - admit. (* mga_loc is not sat in this case *)
         }
-        
         (* random sample <=> else case *)
         ssprove_swap_seq_rhs [:: 0%N; 2%N; 1%N].
         ssprove_contract_put_get_rhs. 
@@ -389,7 +523,44 @@ Proof.
         apply r_put_vs_put.
         apply r_put_vs_put.
         ssprove_restore_mem.
-        - admit. (* Memory *)
-        - admit. (* a = g^(x^x_init) *)
+        - intros h0 h1 [[[[H0 H1] H2] H3] H4].
+          rewrite //= /triple_rhs.
+          admit. (* Theyre literally equal *)
+        - apply r_const_sample_L.
+          1: apply LosslessOp_uniform.
+          intros x_init'.
+          apply r_const_sample_L.
+          1: apply LosslessOp_uniform.
+          intros x_gen'.
+          admit. (* sampling issue. weve sampled x_init and x_gen at another time *)
     }
-Qed.
+    simpl.
+    eapply r_get_remind_lhs.
+      1: exact _.
+    eapply r_get_remind_rhs.
+      1: exact _.
+    ssprove_swap_seq_lhs [:: 2%N; 1%N; 0%N].
+    ssprove_code_simpl.
+    simpl.
+    destruct ((epoch.+3%N == t)%B) eqn:E4.
+    + ssprove_swap_seq_lhs [:: 2%N; 1%N; 0%N].
+      ssprove_swap_rhs 0%N.
+      ssprove_sync => x_gen.
+      ssprove_swap_seq_rhs [:: 1%N; 0%N].
+      destruct ((t == epoch.+2)%B  && ~~ b) eqn:E5.
+      * ssprove_sync => _.
+        admit. (* seems like were trying to compare g^x1 with g^x2 *)
+      * admit. (* seems like were trying to compare g^x1 with g^x2 *)
+    + destruct ((t == epoch.+2)%B  && ~~ b) eqn:E5.
+      * destruct ((epoch.+2 == t)%B) eqn:E6.
+        -- simpl.
+           destruct ((b)%B ) eqn:E7.
+          ++ admit.
+          ++ admit.
+        -- admit.
+      *  destruct ((epoch.+2 == t)%B) eqn:E6.
+        -- destruct ((b)%B ) eqn:E7.
+          ++ admit.
+          ++ admit.
+        -- admit.
+Qed.*)

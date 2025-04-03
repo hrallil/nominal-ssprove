@@ -208,7 +208,7 @@ Definition CKA_PCS (K : cka_scheme) b t :
       #put (rcv_loc K) := stateR' ;;
       #put (send_loc K) := stateS' ;;
 
-      if (t == epoch_inc) && ~~b then
+      if (epoch_inc == t) && ~~b then
         k' ← K.(sampleKey) ;;
         @ret ('mes K × 'key K) (m, k')
       else
