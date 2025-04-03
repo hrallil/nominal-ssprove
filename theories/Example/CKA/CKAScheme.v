@@ -199,7 +199,7 @@ Definition CKA_PCS (K : cka_scheme) b t :
 
       (* Send *)
       stateS ← get send_loc K ;;
-      '(stateR', m, k') ← K.(ckaS) stateS ;;
+      '(stateR', m, k) ← K.(ckaS) stateS ;;
 
       (* Receive *)
       stateR ← get rcv_loc K ;;
@@ -210,7 +210,7 @@ Definition CKA_PCS (K : cka_scheme) b t :
 
       if (epoch_inc == t) && ~~b then
         k' ← K.(sampleKey) ;;
-        @ret ('mes K × 'key K) (m, k'')
+        @ret ('mes K × 'key K) (m, k')
       else
         @ret ('mes K × 'key K) (m, k)
     }
