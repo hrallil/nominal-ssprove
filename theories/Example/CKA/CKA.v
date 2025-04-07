@@ -569,7 +569,7 @@ Proof.
            apply not_or.
            split.
             - move: E3 => /eqP. done.
-            - simpl. lia. done. admit.
+            - simpl. admit.
          }
          intros rcv_fact.
          apply r_put_vs_put.
