@@ -22,6 +22,7 @@ Import PackageNotation.
 #[local] Open Scope ring_scope.
 #[local] Open Scope package_scope.
 Import GroupScope GRing.Theory.
+Require Import Lia.
 
 From NominalSSP Require Import DDH CKAScheme.
 
@@ -236,6 +237,9 @@ Notation inv0 t_max := (
       (λ rl rr t, ¬(t.+1 = t_max ∨ t = t_max) → rl = rr)
 ).
 
+Theorem not_or : forall A B:Prop, ~ A /\ ~ B -> ~ (A \/ B).
+tauto. Qed.
+
 Theorem cka_pcs_ddh_perf b t : (t > 1)%N →
   perfect (I_CKA_PCS cka)(CKA_PCS cka b t)(RED t ∘ DDH b).
 Proof. 
@@ -402,13 +406,8 @@ Proof.
           apply I2.
           move: E1 => /eqP E1.
           subst.
-          rewrite /eqP.
-          move => e.
-          destruct e.
-          - discriminate H0. Search ¬(_ ∨ _).
-            destruct.
-            left.
-            done. 
+          (* question *)
+          intros [H1 | H2]; inversion H1 || inversion H2; lia.
        }
        intros rcv_fact. 
        apply r_put_vs_put.
@@ -428,10 +427,12 @@ Proof.
             ++ intros h0 h1 [[[[H0 H5] H4] H1] H2] H3.
                move: H3.
                get_heap_simpl.
+               intros H3.
+               destruct H3.
                move: E1 => /eqP //.
+               lia.
          -- apply r_ret. done.
        * move: E1 => /eqP E1. subst. simpl. symmetry. apply /eqP. done.
-     
      (* Not init epoch ∧ challenging epoch (t==t* ) *)
      + ssprove_swap_lhs 0%N.
        eapply r_get_remember_lhs => __.
@@ -442,7 +443,7 @@ Proof.
          ssprove_swap_rhs 0%N.
          apply r_get_remember_lhs => rcv_l.
          apply r_get_remember_rhs => mga.
-        eapply rpre_learn.
+         eapply rpre_learn.
          { intros h0 h1 [[[[[[I0 I1] I2] I3] I4] I5] I6]. 
           unfold triple_lrr in I1. 
           rewrite I4 I5 I6 in I1.
@@ -467,11 +468,10 @@ Proof.
                get_heap_simpl.
                move: E1 => /eqP //.
             ++ intros h0 h1 [[[[[H0 H1] H2] H3] H4] H5] H6.
-               move: H0.
+               move: H6.
                get_heap_simpl.
-               rewrite //= /triple_lrr.
-               get_heap_simpl.
-               admit.
+               move: E3 => /eqP //.
+               lia.
          -- apply r_ret.
             unfold op_exp, op_g in *.
             rewrite !otf_fto expgAC.
@@ -488,7 +488,37 @@ Proof.
           apply I1.
           apply /eqP. apply E3.
          }
-         intros mga_fact. subst. simpl. admit. (* Do we need to GETA before GETBC ? *)
+         intros mga_fact.
+         subst. 
+         simpl.
+         ssprove_swap_seq_lhs [:: 0%N; 3%N; 2%N; 1%N].
+         ssprove_swap_seq_rhs [:: 1%N; 0%N; 2%N; 1%N].
+         ssprove_sync => x1.
+         eapply rsymmetry.
+         eapply (r_uniform_bij _ _ _ _ _ _ _ bij_op_exp) => c1.
+         eapply rsymmetry.
+         ssprove_swap_seq_rhs [:: 1%N; 0%N].
+         apply r_get_remember_rhs => ___.
+         apply r_put_vs_put.
+         apply r_put_vs_put.
+         apply r_put_vs_put.
+         ssprove_restore_mem.
+         -- ssprove_invariant.
+            ++  intros h0 h1 [[[[H0 H1] H2] H3] H4] H5.
+                get_heap_simpl.
+                move: H5.
+                get_heap_simpl.
+                move: E3 => /eqP.
+                lia.
+            ++ intros h0 h1 [[[[H0 H1] H2] H3] H4] H5.
+               move: H5.
+               get_heap_simpl.
+               intros H5.
+               destruct H5.
+               right.
+               move: E3 => /eqP.
+               done.
+         -- apply r_ret. done.
        * ssprove_swap_seq_rhs [:: 0%N; 1%N; 2%N; 3%N; 4%N].
          ssprove_swap_seq_lhs [:: 0%N; 1%N; 2%N; 3%N].
          eapply r_get_remember_rhs => ___.
@@ -496,193 +526,66 @@ Proof.
          ssprove_sync => a.
          eapply r_get_remember_lhs => rcv_l.
          eapply r_get_remember_rhs => rcv_r.
-         apply r_put_vs_put.
-         apply r_put_vs_put.
-         apply r_put_vs_put.
-         ssprove_restore_mem.
-         -- ssprove_invariant.
-            ++ intros h0 h1 [[[[H0 H1] H2] H3] H4] H5.
-                move: H5.
-                get_heap_simpl.
-                move: E1 => /eqP //.
-            ++  intros h0 h1 [[[[H0 H1] H2] H3] H4] H5.
-                get_heap_simpl.
-                done.
-         -- ssprove_invariant.
-            apply r_ret.
-            admit. (* The heap isnt gone? how do we handle "remember" *)
-       * ssprove_swap_seq_rhs [:: 0%N; 1%N; 2%N; 3%N; 4%N].
-         ssprove_swap_seq_lhs [:: 0%N; 1%N; 2%N; 3%N].
-
-         eapply r_get_remember_rhs => ___.
-         apply r_forget_rhs.
-         ssprove_sync => a.
-         eapply r_get_remember_lhs => rcv_l.
-         eapply r_get_remember_rhs => rcv_r.
-         apply r_put_vs_put.
-         apply r_put_vs_put.
-         apply r_put_vs_put.
-         ssprove_restore_mem.
-         -- ssprove_invariant.
-            ++ intros h0 h1 [[[[H0 H1] H2] H3] H4] H5.
-                move: H5.
-                get_heap_simpl.
-                move: E1 => /eqP //.
-            ++  intros h0 h1 [[[[H0 H1] H2] H3] H4] H5.
-                get_heap_simpl.
-                done.
-         -- ssprove_invariant.
-            apply r_ret.
-            admit. (* The heap isnt gone? how do we handle "remember" *)
-Admitted.
-
-
- (*
-     ssprove_code_simpl.
-     simpl.
-      destruct ((t == 1%N)%B && ~~b) eqn:E1.
-      2: {
-         destruct ((2%N == t)%B) eqn:E2.
-         1:{
-           ssprove_swap_seq_rhs [:: 0%N; 4%N; 3%N; 2%N; 1%N ].
-           ssprove_contract_put_get_rhs.
-           ssprove_swap_seq_rhs [:: 4%N; 3%N; 2%N; 1%N ].
-           ssprove_contract_put_get_rhs.
-           ssprove_swap_lhs 0%N.
-           apply r_put_vs_put.
-           ssprove_swap_lhs 0%N.
-           apply r_put_vs_put.
-           apply r_put_vs_put.
-           ssprove_sync => a.
-           apply r_put_vs_put.
-           apply r_put_vs_put.
-           ssprove_restore_mem.
-           - ssprove_invariant.
-            + intros h0 h1 [[H0 H1] H2] H3.
-              admit. (* Memory rcv_loc is not updated on the RED side *)
-            + done.  
-            + intros h0 h1 [[H0 H1] H2] H3.
-              admit. (* Memory  mga_loc and rcv_loc only set on one side each *)
-           - apply r_ret. done. 
+         eapply rpre_learn.
+         { intros h0 h1 [[[[[[I0 I1] I2] I3] I4] I5] I6]. 
+           unfold triple_lrr in I2. 
+           rewrite I4 I5 I6 in I2.
+           apply I2.
+           apply not_or.
+           split.
+            - move: E3 => /eqP. done.
+            - admit.
          }
-         destruct ((1%N == t)%B) eqn:E3.
-           1: {
-              destruct ((b)%B ) eqn:E7.
-              - admit. (* Were missing g^a *)
-              - admit. (* Were missing g^a *)
-           }
-           ssprove_swap_seq_rhs [:: 2%N; 1%N ].
-           ssprove_contract_put_get_rhs.
-           ssprove_swap_seq_rhs [:: 0%N; 3%N; 2%N; 1%N ].
-           ssprove_contract_put_get_rhs.
-           ssprove_swap_lhs 0%N.
-           apply r_put_vs_put.
-           ssprove_swap_lhs 0%N.
-           apply r_put_vs_put.
-           apply r_put_vs_put.
-           ssprove_sync => a.
-           apply r_put_vs_put.
-           apply r_put_vs_put.
-           ssprove_restore_mem.
-           - ssprove_invariant.
-              +  intros h0 h1 [[H0 H1] H2] H3.
-                 rewrite //= /triple_rhs.
-                 admit. (* Memory one extra mga_loc *)
-              +  intros h0 h1 [[H0 H1] H2] H3.
-                 admit. (* Memory: some implication *)
-           - apply r_ret. done. 
-        }
-        ssprove_swap_seq_rhs [:: 1%N; 0%N].
-        destruct ((2%N == t)%B) eqn:E2.
-        1: {
-          ssprove_swap_seq_rhs [:: 4%N; 3%N; 1%N; 0%N; 2%N; 1%N].
-          ssprove_contract_put_get_rhs.
-          ssprove_swap_seq_rhs [:: 4%N; 3%N; 2%N; 1%N].
-          ssprove_contract_put_get_rhs.
-          ssprove_swap_rhs 0%N.
-          apply r_put_vs_put.
-          apply r_put_vs_put.
-          apply r_put_vs_put.
-          ssprove_sync => a.
-          ssprove_swap_rhs 0%N.
-          ssprove_swap_lhs 0%N.
-          apply r_put_vs_put.
-          apply r_put_rhs.
-          apply r_put_lhs.
-          apply r_const_sample_L.
-          1: apply LosslessOp_uniform.
-          intros x0.
-          ssprove_restore_mem.
-          1: {
-            ssprove_invariant.
-            - intros h0 h1 [[H0 H1] H2] H3.
-              admit. (* Memory mga_loc and rcv_loc not matching *)
-            - intros t1. reflexivity.
-          }
-        }
-        destruct ((1%N == t)%B) eqn:E3.
-        (* Case: random sample vs DDH reduction getBC ( t == t* )*)  
-        1: { 
-            destruct ((b)%B ) eqn:E7.
-            - ssprove_swap_seq_lhs [:: 1%N; 0%N].
-              ssprove_swap_rhs 0%N.
-              admit. (* mga_loc is not sat in this case *)
-            - admit. (* mga_loc is not sat in this case *)
-        }
-        (* random sample <=> else case *)
-        ssprove_swap_seq_rhs [:: 0%N; 2%N; 1%N].
-        ssprove_contract_put_get_rhs. 
-        ssprove_swap_seq_rhs [:: 2%N; 1%N; 0%N].
-        ssprove_swap_seq_lhs [:: 2%N; 1%N; 0%N].
-        ssprove_sync => x_gen.
-        ssprove_swap_seq_rhs [:: 1%N; 0%N; 2%N; 1%N].
-        ssprove_contract_put_get_rhs.
-        ssprove_swap_rhs 1%N.
-        ssprove_swap_rhs 0%N.
-        apply r_put_vs_put.
-        apply r_put_vs_put.
-        apply r_put_vs_put.
-        apply r_put_vs_put.
-        apply r_put_vs_put.
-        ssprove_restore_mem.
-        - intros h0 h1 [[[[H0 H1] H2] H3] H4].
-          rewrite //= /triple_rhs.
-          admit. (* Theyre literally equal *)
-        - apply r_const_sample_L.
-          1: apply LosslessOp_uniform.
-          intros x_init'.
-          apply r_const_sample_L.
-          1: apply LosslessOp_uniform.
-          intros x_gen'.
-          admit. (* sampling issue. weve sampled x_init and x_gen at another time *)
-    }
-    simpl.
-    eapply r_get_remind_lhs.
-      1: exact _.
-    eapply r_get_remind_rhs.
-      1: exact _.
-    ssprove_swap_seq_lhs [:: 2%N; 1%N; 0%N].
-    ssprove_code_simpl.
-    simpl.
-    destruct ((epoch.+3%N == t)%B) eqn:E4.
-    + ssprove_swap_seq_lhs [:: 2%N; 1%N; 0%N].
-      ssprove_swap_rhs 0%N.
-      ssprove_sync => x_gen.
-      ssprove_swap_seq_rhs [:: 1%N; 0%N].
-      destruct ((t == epoch.+2)%B  && ~~ b) eqn:E5.
-      * ssprove_sync => _.
-        admit. (* seems like were trying to compare g^x1 with g^x2 *)
-      * admit. (* seems like were trying to compare g^x1 with g^x2 *)
-    + destruct ((t == epoch.+2)%B  && ~~ b) eqn:E5.
-      * destruct ((epoch.+2 == t)%B) eqn:E6.
-        -- simpl.
-           destruct ((b)%B ) eqn:E7.
-          ++ admit.
-          ++ admit.
-        -- admit.
-      *  destruct ((epoch.+2 == t)%B) eqn:E6.
-        -- destruct ((b)%B ) eqn:E7.
-          ++ admit.
-          ++ admit.
-        -- admit.
-Qed.*)
+         intros rcv_fact.
+         apply r_put_vs_put.
+         apply r_put_vs_put.
+         apply r_put_vs_put.
+         ssprove_restore_mem.
+         -- ssprove_invariant.
+            ++ intros h0 h1 [[[[H0 H1] H2] H3] H4] H5.
+                move: H5.
+                get_heap_simpl.
+                move: E1 => /eqP //.
+            ++  intros h0 h1 [[[[H0 H1] H2] H3] H4] H5.
+                get_heap_simpl.
+                done.
+         -- ssprove_invariant.
+            apply r_ret.
+            rewrite rcv_fact.
+            done.
+       * ssprove_swap_seq_rhs [:: 0%N; 1%N; 2%N; 3%N; 4%N].
+         ssprove_swap_seq_lhs [:: 0%N; 1%N; 2%N; 3%N].
+
+         eapply r_get_remember_rhs => ___.
+         apply r_forget_rhs.
+         ssprove_sync => a.
+         eapply r_get_remember_lhs => rcv_l.
+         eapply r_get_remember_rhs => rcv_r.
+         eapply rpre_learn.
+         { intros h0 h1 [[[[[[I0 I1] I2] I3] I4] I5] I6]. 
+           unfold triple_lrr in I2. 
+           rewrite I4 I5 I6 in I2.
+           apply I2.
+           apply not_or.
+           split.
+            - move: E3 => /eqP. done.
+            - simpl. lia. done. admit.
+         }
+         intros rcv_fact.
+         apply r_put_vs_put.
+         apply r_put_vs_put.
+         apply r_put_vs_put.
+         ssprove_restore_mem.
+         -- ssprove_invariant.
+            ++ intros h0 h1 [[[[H0 H1] H2] H3] H4] H5.
+                move: H5.
+                get_heap_simpl.
+                move: E1 => /eqP //.
+            ++  intros h0 h1 [[[[H0 H1] H2] H3] H4] H5.
+                get_heap_simpl.
+                done.
+         -- ssprove_invariant.
+            apply r_ret.
+            rewrite rcv_fact.
+            done.
+Admitted.
