@@ -285,7 +285,7 @@ Proof.
     1: ssprove_invariant.
     move=> //= epoch.
     destruct epoch; ssprove_code_simpl; simpl.
-    (* Init epoch *)
+    (* ========== Init epoch ========== *)
     1: {
       ssprove_sync => x_init.
       ssprove_swap_lhs 1%N.
@@ -306,7 +306,8 @@ Proof.
       replace (t == 1%N)%B with false.
       - replace (1%N == t)%B with false.
         + simpl.
-          (* init epoch ∧ t=t*-1 (meaning ) *)
+          (* init epoch ∧ t=t*-1 (meaning the epoch before the challenge) *)
+          (* So when the challenge is on the 2nd epoch *)
           destruct ((2%N == t)%B) eqn:E2.
           * ssprove_swap_seq_rhs [:: 2%N; 1%N; 0%N].
             ssprove_swap_seq_lhs [:: 2%N; 1%N; 0%N].
@@ -380,7 +381,7 @@ Proof.
       -  symmetry. apply /eqP. intro h. subst. done.
       }
 
-     (* None init epoch *)
+     (* ========== None init epoch ========== *)
      eapply r_get_remind_lhs.
      1: exact _.
      eapply r_get_remind_rhs.
@@ -433,11 +434,13 @@ Proof.
                lia.
          -- apply r_ret. done.
        * move: E1 => /eqP E1. subst. simpl. symmetry. apply /eqP. done.
+
      (* Not init epoch ∧ challenging epoch (t==t* ) *)
      + ssprove_swap_lhs 0%N.
        eapply r_get_remember_lhs => __.
        apply r_forget_lhs.
        destruct (epoch.+2 == t)%B eqn:E3; destruct (b) eqn:E4; simpl.
+       (* Not init epoch ∧ challenging epoch (t==t* ) ∧  cka-norm/RED-norm *)
        * ssprove_swap_lhs 1%N.
          ssprove_swap_lhs 0%N.
          ssprove_swap_rhs 0%N.
@@ -476,6 +479,8 @@ Proof.
             unfold op_exp, op_g in *.
             rewrite !otf_fto expgAC.
             done.
+            
+       (* Not init epoch ∧ challenging epoch (t==t* ) ∧ cka-sample/RED-sample *)
        * ssprove_swap_lhs 1%N.
          ssprove_swap_lhs 0%N.
          ssprove_swap_rhs 0%N.
@@ -519,6 +524,8 @@ Proof.
                move: E3 => /eqP.
                done.
          -- apply r_ret. done.
+       
+       (* non-init ∧ challenging epoch ∧ cka-norm/RED-sample *)
        * ssprove_swap_seq_rhs [:: 0%N; 1%N; 2%N; 3%N; 4%N].
          ssprove_swap_seq_lhs [:: 0%N; 1%N; 2%N; 3%N].
          eapply r_get_remember_rhs => ___.
@@ -553,6 +560,7 @@ Proof.
             apply r_ret.
             rewrite rcv_fact.
             done.
+        
        * ssprove_swap_seq_rhs [:: 0%N; 1%N; 2%N; 3%N; 4%N].
          ssprove_swap_seq_lhs [:: 0%N; 1%N; 2%N; 3%N].
 
