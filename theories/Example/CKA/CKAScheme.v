@@ -184,13 +184,13 @@ Definition EPOCH := 3%N.
 
 Definition I_CKA_PCS (K : cka_scheme) :=
   [interface
-    #val #[ EPOCH ] : 'unit → ('mes K × 'key K)
+    #val #[ EPOCH ] : 'unit → (('mes K × 'key K) × 'option('stateR K))
   ].
 
 Definition CKA_PCS (K : cka_scheme) b t :
   game (I_CKA_PCS K) :=
   [module fset [:: epoch_loc ; send_loc K ; rcv_loc K] ;
-    #def #[ EPOCH ] (_ : 'unit) : ('mes K × 'key K) {
+    #def #[ EPOCH ] (_ : 'unit) : (('mes K × 'key K) × 'option('stateR K)) {
       _ ← init K ;;
 
       epoch ← get epoch_loc ;;
@@ -208,13 +208,16 @@ Definition CKA_PCS (K : cka_scheme) b t :
       #put (rcv_loc K) := stateR' ;;
       #put (send_loc K) := stateS' ;;
 
-      if (epoch_inc == t) && ~~b then
-        k' ← K.(sampleKey) ;;
-        @ret ('mes K × 'key K) (m, k')
-
-        (* two cases for not b and b *)
+      if (epoch_inc == t) then
+        if (b) then
+          @ret (('mes K × 'key K) × 'option('stateR K)) ((m, k), None)
+        else
+          k' ← K.(sampleKey) ;;
+          @ret (('mes K × 'key K) × 'option('stateR K)) ((m, k'), None)
+      else if (epoch_inc.+1 == t) then
+        @ret (('mes K × 'key K) × 'option('stateR K)) ((m, k), None)
       else
-        @ret ('mes K × 'key K) (m, k)
+        @ret (('mes K × 'key K) × 'option('stateR K)) ((m, k), Some(stateR'))
     }
  ].
   

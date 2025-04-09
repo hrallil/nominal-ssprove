@@ -93,7 +93,6 @@ Proof.
 Qed.
 
 
-
 Theorem correct_cka : CORR0 cka ≈₀ CORR1 cka.
 Proof.
   (*Fix heap_ignore, shouldnt be here*)
@@ -145,7 +144,7 @@ end).
 Definition RED t :
   module I_DDH (I_CKA_PCS cka) :=
   [module fset [:: epoch_loc ; send_loc cka ; rcv_loc cka] ;
-    #def #[ EPOCH ] (_ : 'unit) : ('mes cka × 'key cka) {
+    #def #[ EPOCH ] (_ : 'unit) : (('mes cka × 'key cka) × 'option('stateR cka)) {
       _ ← init' ;;
 
       epoch ← get epoch_loc ;;
@@ -161,7 +160,8 @@ Definition RED t :
 
         #put (send_loc cka) := m ;;
 
-        @ret ('mes cka × 'key cka) (m, op_exp m stateR)
+        @ret (('mes cka × 'key cka) × 'option('stateR cka))
+          ((m, op_exp m stateR), None)
         
       else if epoch_inc == t then 
         #import {sig #[ GETBC ] : 'unit → 'el × 'el } as GETBC ;;
@@ -169,7 +169,8 @@ Definition RED t :
        
         #put (send_loc cka) := m ;;
 
-        @ret ('mes cka × 'key cka) (m, k)
+        @ret (('mes cka × 'key cka) × 'option('stateR cka))
+          ((m, k), None)
         (* for the case of t+1, 
            we see that the behavior is captured by the default case *)
       else
@@ -183,7 +184,8 @@ Definition RED t :
         #put (rcv_loc cka) := x ;;
         #put (send_loc cka) := op_exp op_g x ;;
 
-        @ret ('mes cka × 'key cka) (op_exp op_g x, op_exp stateS x)
+        @ret (('mes cka × 'key cka) × 'option('stateR cka))
+          ((op_exp op_g x, op_exp stateS x), Some(x))
     }
   ].
   
@@ -229,7 +231,9 @@ Notation inv0 t_max := (
   ⋊ triple_lrr (rcv_loc cka) (rcv_loc cka) epoch_loc
       (λ rl rr t, t.+2 = t_max → rl = rr) (* before t-1 case *)
  ⋊ triple_lrr (rcv_loc cka) (send_loc cka) epoch_loc
-      (λ rl sr t, t != 0 → op_exp op_g rl = sr) (* before t-1 case *)
+      (λ rl sr t, t != 0 → op_exp op_g rl = sr)
+ (*⋊ triple_lrr (rcv_loc cka) (rcv_loc cka) epoch_loc
+      (λ rl rr t, t.+1 = t_max → rr = Some(None)) *)
 ).
 
 Theorem not_or : forall A B:Prop, ~ A /\ ~ B -> ~ (A \/ B).
@@ -337,8 +341,7 @@ Proof.
             ssprove_restore_mem.
             2: {
               apply r_ret. unfold op_exp. unfold op_exp, op_g in *.
-              rewrite !otf_fto expgAC.
-            done.
+              rewrite !otf_fto expgAC. done.
             }
             ssprove_invariant.
             -- intros h0 h1 [[H0 H1] H2] H3. 
@@ -452,7 +455,7 @@ Proof.
        eapply r_get_remember_lhs => __.
        apply r_forget_lhs.
        destruct (epoch.+2 == t)%B eqn:E3; destruct (b) eqn:E4; simpl.
-       (* Not init epoch ∧ challenging epoch (t==t* ) ∧  cka-norm/RED-norm *)
+       (* Not init epoch ∧ challenging epoch (t = t_max) ∧  cka-norm/RED-norm *)
        * ssprove_swap_lhs 1%N.
          ssprove_swap_lhs 0%N.
          ssprove_swap_rhs 0%N.
@@ -493,7 +496,7 @@ Proof.
             rewrite !otf_fto expgAC.
             done.
             
-       (* Not init epoch ∧ challenging epoch (t==t* ) ∧ cka-sample/RED-sample *)
+       (* Not init epoch ∧ challenging epoch (t==t* ) ∧ cka-sample/RED-sampl *)
        * ssprove_swap_lhs 1%N.
          ssprove_swap_lhs 0%N.
          ssprove_swap_rhs 0%N.
@@ -614,3 +617,5 @@ Proof.
             rewrite !otf_fto expgAC.
             done.
 Qed.
+
+End CKA.
