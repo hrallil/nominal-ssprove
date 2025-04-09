@@ -211,6 +211,8 @@ Definition CKA_PCS (K : cka_scheme) b t :
       if (epoch_inc == t) && ~~b then
         k' ← K.(sampleKey) ;;
         @ret ('mes K × 'key K) (m, k')
+
+        (* two cases for not b and b *)
       else
         @ret ('mes K × 'key K) (m, k)
     }
