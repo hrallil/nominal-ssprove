@@ -493,7 +493,7 @@ Proof.
             rewrite !otf_fto expgAC.
             done.
             
-       (* Not init epoch ∧ after challenging epoch (t==t* ) ∧ cka-sample/RED-sample *)
+       (* Not init epoch ∧ challenging epoch (t==t* ) ∧ cka-sample/RED-sample *)
        * ssprove_swap_lhs 1%N.
          ssprove_swap_lhs 0%N.
          ssprove_swap_rhs 0%N.
