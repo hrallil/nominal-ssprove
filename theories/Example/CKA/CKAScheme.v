@@ -157,8 +157,6 @@ Definition epoch_loc : Location := ('nat; 11%N).
 Definition send_loc (K: cka_scheme) : Location := ('stateS K; 13%N).
 Definition rcv_loc (K: cka_scheme) : Location := ('stateR K; 16%N).
 
-Definition init_loc (P : cka_scheme) : Location := ('option ('stateS P); 1%N).
-
 Definition init (K : cka_scheme) : raw_code ('unit) :=
   locked (epoch ← get epoch_loc ;;
   match epoch with
@@ -187,7 +185,7 @@ Definition I_CKA_PCS (K : cka_scheme) :=
     #val #[ EPOCH ] : 'unit → (('mes K × 'key K) × 'option('stateR K))
   ].
 
-Definition CKA_PCS (K : cka_scheme) b t :
+Definition CKA_PCS (K : cka_scheme) bit t :
   game (I_CKA_PCS K) :=
   [module fset [:: epoch_loc ; send_loc K ; rcv_loc K] ;
     #def #[ EPOCH ] (_ : 'unit) : (('mes K × 'key K) × 'option('stateR K)) {
@@ -208,13 +206,17 @@ Definition CKA_PCS (K : cka_scheme) b t :
       #put (rcv_loc K) := stateR' ;;
       #put (send_loc K) := stateS' ;;
 
+      (* Challenge Epoch *)
       if (epoch_inc == t) then
-        if (b) then
+        if (bit) then
           @ret (('mes K × 'key K) × 'option('stateR K)) ((m, k), None)
         else
           k' ← K.(sampleKey) ;;
           @ret (('mes K × 'key K) × 'option('stateR K)) ((m, k'), None)
+
+      (* Pre-challenge Epoch *)
       else if (epoch_inc.+1 == t) then
+        (* Corruption is not allowed *)
         @ret (('mes K × 'key K) × 'option('stateR K)) ((m, k), None)
       else
         @ret (('mes K × 'key K) × 'option('stateR K)) ((m, k), Some(stateR'))

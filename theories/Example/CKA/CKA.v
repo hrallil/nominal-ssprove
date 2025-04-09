@@ -39,13 +39,12 @@ Definition cka : cka_scheme := {|
   ; Key := 'fin #|el|
   ; StateS := 'fin #|el|
   ; StateR := 'fin #|exp|
-  
+
   ; sampleKey :=
     {code 
       x ← sample uniform #|el|;;
       ret x
     }
-  
   ; keygen := 
     {code 
       x ← sample uniform #|exp| ;;
@@ -64,7 +63,6 @@ Definition cka : cka_scheme := {|
       ret (h, op_exp h x)
     }
   |}.
-
 
 Theorem correct_cka_simple : CORR0_simple cka ≈₀ CORR1_simple cka.
 Proof.
@@ -95,7 +93,6 @@ Qed.
 
 Theorem correct_cka : CORR0 cka ≈₀ CORR1 cka.
 Proof.
-  (*Fix heap_ignore, shouldnt be here*)
   apply (eq_rel_perf_ind _ _ (heap_ignore (fset [::]))).
   1: ssprove_invariant; fset_solve. 
   simplify_eq_rel n.
@@ -151,35 +148,30 @@ Definition RED t :
       let epoch_inc := epoch.+1 in
       #put epoch_loc := epoch_inc ;;
 
-      (* Send *)
+      (* Pre-challenge epoch (t - 1) *)
       if epoch_inc.+1 == t then
         #import {sig #[ GETA ] : 'unit → 'el } as GETA ;;
         m ← GETA tt ;;
-        (* Only place where we need the receive lock, for the invariant *)
-        stateR ← get rcv_loc cka ;;
 
+        stateR ← get rcv_loc cka ;;
         #put (send_loc cka) := m ;;
 
         @ret (('mes cka × 'key cka) × 'option('stateR cka))
           ((m, op_exp m stateR), None)
-        
+      
+      (* Challenge epoch (t) *)
       else if epoch_inc == t then 
         #import {sig #[ GETBC ] : 'unit → 'el × 'el } as GETBC ;;
         '(m, k) ← GETBC tt ;; 
-       
         #put (send_loc cka) := m ;;
 
         @ret (('mes cka × 'key cka) × 'option('stateR cka))
           ((m, k), None)
-        (* for the case of t+1, 
-           we see that the behavior is captured by the default case *)
+      
+      (* This captures t + 1 and other cases *)
       else
         stateS ← get send_loc cka ;;
-        
         x ← sample uniform #|exp| ;;
-        (* Receive *)
-        (* stateR ← get rcv_loc cka ;; *)
-        (* '(stateS', k) ← cka.(ckaR) stateR m ;; *)
 
         #put (rcv_loc cka) := x ;;
         #put (send_loc cka) := op_exp op_g x ;;
@@ -188,11 +180,11 @@ Definition RED t :
           ((op_exp op_g x, op_exp stateS x), Some(x))
     }
   ].
-  
+
+(* To be able to argue for left and right locations *)
 Definition triple_lrr (l₀ l₁ l₂ : Location) (R : l₀ → l₁ → l₂ → Prop)
   : precond := λ '(h₀, h₁),
     R (get_heap h₀ l₀) (get_heap h₁ l₁) (get_heap h₁ l₂).
-
 
 Class Triple_lrr (l l' l'' : Location) R pre :=
   is_triple_lrr : ∀ s₀ s₁,
@@ -219,28 +211,25 @@ Lemma triple_lrr_conj_right {l l' l'' R} {pre spre : precond} :
   Triple_lrr l l' l'' R pre → Triple_lrr l l' l'' R (pre ⋊ spre).
 Proof. intros C s0 s1 [H0 H1]. by apply C. Qed.
   
-  
-  (* 
-  ⋊ triple_rhs (epoch_loc) (send_loc cka) mga_loc
-      (λ t s a, t.+1  = t_max → Some s = a)
-      *)
+
 Notation inv0 t_max := (
   heap_ignore (fset[::mga_loc; rcv_loc cka])
+ (* Connect g^a to our case on t - 1 epoch *)
   ⋊ triple_lrr (rcv_loc cka) (mga_loc) epoch_loc
-      (λ rl mga t, t.+1 = t_max → Some(op_exp op_g rl) = mga) (*Some(op_exp op_g rl) = mga*)
+      (λ rl mga t, t.+1 = t_max → Some(op_exp op_g rl) = mga)
+
+ (* We only care about the receive lock when we enter t - 1 case *)
   ⋊ triple_lrr (rcv_loc cka) (rcv_loc cka) epoch_loc
-      (λ rl rr t, t.+2 = t_max → rl = rr) (* before t-1 case *)
+      (λ rl rr t, t.+2 = t_max → rl = rr)
+ 
+ (* Left side receive location is always
+    the exponent to the right send location *)
  ⋊ triple_lrr (rcv_loc cka) (send_loc cka) epoch_loc
       (λ rl sr t, t != 0 → op_exp op_g rl = sr)
- (*⋊ triple_lrr (rcv_loc cka) (rcv_loc cka) epoch_loc
-      (λ rl rr t, t.+1 = t_max → rr = Some(None)) *)
 ).
 
-Theorem not_or : forall A B:Prop, ~ A /\ ~ B -> ~ (A \/ B).
-tauto. Qed.
-
-Theorem cka_pcs_ddh_perf b t : (t > 1)%N →
-  perfect (I_CKA_PCS cka)(CKA_PCS cka b t)(RED t ∘ DDH b).
+Theorem cka_pcs_ddh_perf bit t : (t > 1)%N →
+  perfect (I_CKA_PCS cka)(CKA_PCS cka bit t)(RED t ∘ DDH bit).
 Proof. 
   nssprove_share. 
   intros.
@@ -258,16 +247,10 @@ Proof.
       1-3: apply /eqP; move=> h'; subst.
       1-3: apply H6; simpl; fset_solve.
     + simpl. 
-      rewrite get_empty_heap//=.
+      rewrite get_empty_heap //=.
       subst.
       intro t1.
       by subst.
-      (* intros h'.
-      destruct h'.
-      * subst.
-        done.
-      * subst.
-        done. *)
   -  eapply Build_SemiInvariant.
     + intros s0 s1 l v.
       move=> /negP H5 /negP H6.   
@@ -287,7 +270,7 @@ Proof.
       1-3: apply /eqP; move=> h'; subst.
       1-3: apply H6; simpl; fset_solve.
     + simpl. 
-      rewrite get_empty_heap//=.
+      rewrite get_empty_heap //=.
   - simplify_eq_rel x.
     rewrite /init -lock //=.
     apply r_get_vs_get_remember.
@@ -297,39 +280,31 @@ Proof.
     (* ========== Init epoch ========== *)
     1: {
       ssprove_sync => x_init.
-      ssprove_swap_lhs 1%N.
-      ssprove_swap_lhs 0%N.
-      ssprove_swap_rhs 1%N.
-      ssprove_swap_rhs 0%N.
+      ssprove_swap_seq_lhs [:: 1%N; 0%N].
+      ssprove_swap_seq_rhs [:: 1%N; 0%N].
       eapply r_get_remind_lhs.
       1: exact _.
       eapply r_get_remind_rhs.
       1: exact _.
-      ssprove_swap_lhs 2%N.
-      ssprove_swap_lhs 1%N.
+      ssprove_swap_seq_lhs [:: 2%N; 1%N].
       ssprove_contract_put_get_lhs.
       ssprove_swap_seq_lhs [:: 3%N; 2%N; 0%N; 1%N].
       ssprove_contract_put_get_lhs.      
       ssprove_swap_seq_lhs [:: 1%N; 0%N].
-      (* Cannot have t*==1 as we cannot challenge there *)
+      (* Cannot have t* = 1 as we cannot challenge there *)
       replace (t == 1%N)%B with false.
       - replace (1%N == t)%B with false.
         + simpl.
-          (* init epoch ∧ t=t*-1 (meaning the epoch before the challenge) *)
-          (* So when the challenge is on the 2nd epoch *)
+          (* init epoch ∧ t = t* -1 (meaning the epoch before the challenge) *)
           destruct ((2%N == t)%B) eqn:E2.
           * ssprove_swap_seq_rhs [:: 2%N; 1%N; 0%N].
             ssprove_swap_seq_lhs [:: 2%N; 1%N; 0%N].
             ssprove_sync => a.
-            ssprove_swap_rhs 0%N.
-            ssprove_swap_seq_rhs [:: 3%N; 2%N; 1%N].
+            ssprove_swap_seq_rhs [:: 0%N; 3%N; 2%N; 1%N].
             ssprove_contract_put_get_rhs.
             ssprove_swap_seq_rhs [:: 0%N; 3%N; 2%N; 1%N].
             ssprove_contract_put_rhs.
-            ssprove_swap_lhs 0%N.
-            ssprove_swap_lhs 1%N.
-            ssprove_swap_lhs 2%N.
-            ssprove_swap_lhs 1%N.
+            ssprove_swap_seq_lhs [:: 0%N; 1%N; 2%N; 1%N].
             ssprove_contract_put_lhs.
             ssprove_swap_rhs 0%N.
             apply r_put_vs_put.
@@ -373,9 +348,7 @@ Proof.
             ssprove_contract_put_lhs.
             ssprove_swap_seq_lhs [:: 1%N; 0%N; 2%N; 1%N].
             ssprove_contract_put_lhs.
-            apply r_put_vs_put.
-            apply r_put_vs_put.
-            apply r_put_vs_put.
+            do 3 apply r_put_vs_put.
             ssprove_restore_mem.
             -- ssprove_invariant.
               ++  intros h0 h1 [[H0 H1] H2] H3. 
@@ -389,20 +362,21 @@ Proof.
               ++  intros h0 h1 [[H0 H1] H2] H3.
                   get_heap_simpl.
                   done.
-            -- apply r_ret. unfold op_exp. unfold op_exp, op_g in *.
-            rewrite !otf_fto expgAC.
-            done.
+            -- apply r_ret.
+               unfold op_exp.
+               unfold op_exp, op_g in *.
+               rewrite !otf_fto expgAC.
+               done.
         +  symmetry. apply /eqP. intro h. subst. done.  
       -  symmetry. apply /eqP. intro h. subst. done.
       }
-
      (* ========== None init epoch ========== *)
      eapply r_get_remind_lhs.
      1: exact _.
      eapply r_get_remind_rhs.
      1: exact _.
      
-     (* Not init epoch ∧ t = t*-1 *)
+     (* Not init epoch ∧ t = t* - 1 *)
      destruct (epoch.+3 == t)%B eqn:E1.
      + ssprove_swap_seq_lhs [:: 1%N; 0%N].
        ssprove_swap_rhs 0%N.
@@ -415,14 +389,12 @@ Proof.
        eapply r_get_remember_rhs => rcv_r.
        eapply rpre_learn.
        { intros h0 h1 [[[[[[I0 I1] I2] I3] I4] I5] I6]. 
-          unfold triple_lrr in I1. 
-          rewrite I4 I5 I6 in I1.
-          apply I1.
-          move: E1 => /eqP E1.
-          subst.
-          lia.
-          (* question intros [H1 | H2]; inversion H1 || inversion H2; lia. *)
-          
+         unfold triple_lrr in I1. 
+         rewrite I4 I5 I6 in I1.
+         apply I1.
+         move: E1 => /eqP E1.
+         subst.
+         lia.
        }
        intros rcv_fact. 
        ssprove_swap_rhs 0%N.
@@ -450,23 +422,23 @@ Proof.
          -- apply r_ret. done.
        * move: E1 => /eqP E1. subst. simpl. symmetry. apply /eqP. done.
 
-     (* Not init epoch ∧ challenging epoch (t==t* ) *)
+     (* Not init epoch ∧ challenging epoch (t = t* ) *)
      + ssprove_swap_lhs 0%N.
        eapply r_get_remember_lhs => __.
        apply r_forget_lhs.
-       destruct (epoch.+2 == t)%B eqn:E3; destruct (b) eqn:E4; simpl.
+       destruct (epoch.+2 == t)%B eqn:E3; destruct (bit) eqn:E4; simpl.
        (* Not init epoch ∧ challenging epoch (t = t_max) ∧  cka-norm/RED-norm *)
-       * ssprove_swap_lhs 1%N.
-         ssprove_swap_lhs 0%N.
+       * 
+         ssprove_swap_seq_lhs [:: 1%N; 0%N].
          ssprove_swap_rhs 0%N.
          apply r_get_remember_lhs => rcv_l.
          apply r_get_remember_rhs => mga.
          eapply rpre_learn.
-         { intros h0 h1 [[[[[[[I0 I7] I1] I2] I3] I4] I5] I6]. 
-          unfold triple_lrr in I7. 
-          rewrite I4 I5 I6 in I7.
-          apply I7.
-          apply /eqP. apply E3.
+         { intros h0 h1 [[[[[[[I0 I1] I2] I3] I4] I5] I6] I7]. 
+           unfold triple_lrr in I1. 
+           rewrite I5 I6 I7 in I1.
+           apply I1.
+           apply /eqP. apply E3.
          }
        intros mga_fact.
        subst.
@@ -474,9 +446,7 @@ Proof.
        ssprove_swap_lhs 0%N.
        ssprove_swap_seq_rhs [:: 1%N; 0%N].
        ssprove_sync => a0.
-       apply r_put_vs_put.
-       apply r_put_vs_put.
-       apply r_put_vs_put.
+       do 3 apply r_put_vs_put.
        ssprove_restore_mem.
          -- ssprove_invariant.
             ++ intros h0 h1 [[[[H0 H2] H3] H4] H5] H6.
@@ -497,17 +467,17 @@ Proof.
             done.
             
        (* Not init epoch ∧ challenging epoch (t==t* ) ∧ cka-sample/RED-sampl *)
-       * ssprove_swap_lhs 1%N.
-         ssprove_swap_lhs 0%N.
+       * 
+         ssprove_swap_seq_lhs [:: 1%N; 0%N].
          ssprove_swap_rhs 0%N.
          apply r_get_remember_lhs => rcv_l.
          apply r_get_remember_rhs => mga.
          eapply rpre_learn.
-         { intros h0 h1 [[[[[[[I0 I7] I1] I2] I3] I4] I5] I6]. 
-          unfold triple_lrr in I7. 
-          rewrite I4 I5 I6 in I7.
-          apply I7.
-          apply /eqP. apply E3.
+         { intros h0 h1 [[[[[[[I0 I1] I2] I3] I4] I5] I6] I7]. 
+           unfold triple_lrr in I1. 
+           rewrite I5 I6 I7 in I1.
+           apply I1.
+           apply /eqP. apply E3.
          }
          intros mga_fact.
          subst. 
@@ -518,9 +488,7 @@ Proof.
          eapply rsymmetry.
          eapply (r_uniform_bij _ _ _ _ _ _ _ bij_op_exp) => c1.
          eapply rsymmetry.
-         apply r_put_vs_put.
-         apply r_put_vs_put.
-         apply r_put_vs_put.
+         do 3 apply r_put_vs_put.
          ssprove_restore_mem.
          -- ssprove_invariant.
             ++  intros h0 h1 [[[[H0 H1] H2] H3] H4] H5.
@@ -537,9 +505,6 @@ Proof.
             ++ intros h0 h1 [[[[H0 H1] H2] H3] H4] H5.
                get_heap_simpl.
                done.
-               (*right.
-               move: E3 => /eqP.
-               done.*)
          -- apply r_ret. done.
        
        (* non-init ∧ challenging epoch ∧ cka-norm/RED-sample *)
@@ -559,9 +524,7 @@ Proof.
          intros send_fact.
          ssprove_swap_seq_rhs [:: 0%N].
          ssprove_swap_seq_rhs [:: 1%N].
-         apply r_put_vs_put.
-         apply r_put_vs_put.
-         apply r_put_vs_put.
+         do 3 apply r_put_vs_put.
          ssprove_restore_mem.
          -- ssprove_invariant.
             ++ intros h0 h1 [[[H0 H2] H3] H4] H5.
@@ -581,7 +544,6 @@ Proof.
             rewrite -send_fact.
             rewrite 2!otf_fto.
             done.
-        
        * ssprove_swap_seq_rhs [:: 0%N; 1%N; 2%N; 3%N].
          ssprove_swap_seq_lhs [:: 0%N; 1%N; 2%N; 3%N].
          eapply r_get_remember_rhs => send.
@@ -595,9 +557,7 @@ Proof.
            done.
          }
          intros send_fact.
-         apply r_put_vs_put.
-         apply r_put_vs_put.
-         apply r_put_vs_put.
+         do 3 apply r_put_vs_put.
          ssprove_restore_mem.
          -- ssprove_invariant.
             ++ intros h0 h1 [[[[H0 H1] H2] H3] H4] H5.
@@ -617,5 +577,4 @@ Proof.
             rewrite !otf_fto expgAC.
             done.
 Qed.
-
 End CKA.
