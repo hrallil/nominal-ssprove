@@ -175,12 +175,14 @@ Notation init' := (
     @ret 'unit Datatypes.tt
   | _.+1 =>
     @ret 'unit Datatypes.tt
-end). 
+end).
 
 Definition RED t :
   module I_DDH (I_CKA_PCS cka) :=
   [module fset [:: epoch_loc ; send_loc cka ; rcv_loc cka] ;
-    #def #[ EPOCH ] (r : ('stateR cka)) : (('mes cka × 'key cka) × 'option('stateR cka)) {
+    #def #[ EPOCH ] (r : ('stateR cka)) : (
+      ('mes cka × 'key cka) × 'option('stateR cka)
+    ) {
       _ ← init' ;;
 
       epoch ← get epoch_loc ;;
@@ -261,7 +263,8 @@ Notation inv0 t_max := (
   ⋊ triple_lrr (rcv_loc cka) (mga_loc) epoch_loc
       (λ rl mga t, t.+1 = t_max → Some(op_exp op_g rl) = mga)
 
- (* We only care about the receive lock when we enter t - 1 case *)
+ (* We only care about
+    the receive lock when we enter t - 1 case *)
   ⋊ triple_lrr (rcv_loc cka) (rcv_loc cka) epoch_loc
       (λ rl rr t, t.+2 = t_max → rl = rr)
  
@@ -340,7 +343,7 @@ Proof.
       replace (t == 1%N)%B with false.
       - replace (1%N == t)%B with false.
         + simpl.
-          (* init epoch ∧ t = t_max -1 (meaning the epoch before the challenge) *)
+          (* init epoch and t = t_max - 1 *)
           destruct ((2%N == t)%B) eqn:E2.
           * simpl.
             ssprove_swap_seq_lhs [:: 1%N; 0%N; 3%N; 2%N; 1%N].
@@ -378,7 +381,7 @@ Proof.
             -- intros h0 h1 [[H0 H1] H2] H3.
                get_heap_simpl.
                done.
-          (* init epoch ∧ else case *)
+          (* init epoch and else case *)
           * simpl.
             ssprove_swap_seq_rhs [:: 2%N; 1%N].
             ssprove_contract_put_get_rhs.
@@ -418,7 +421,7 @@ Proof.
      eapply r_get_remind_rhs.
      1: exact _.
      
-     (* Not init epoch ∧ t = t_max - 1 *)
+     (* Not init epoch and t = t_max - 1 *)
      destruct (epoch.+3 == t)%B eqn:E1.
      + simpl.
        ssprove_swap_seq_lhs [:: 1%N; 0%N].
@@ -463,14 +466,20 @@ Proof.
                get_heap_simpl.
                done.
          -- apply r_ret. done.
-       * move: E1 => /eqP E1. subst. simpl. symmetry. apply /eqP. done.
+       * move: E1 => /eqP E1.
+         subst.
+         simpl.
+         symmetry.
+         apply /eqP => //.
      + simpl.
        ssprove_swap_lhs 0%N.
        eapply r_get_remember_lhs => __.
        apply r_forget_lhs.
        destruct (epoch.+2 == t)%B eqn:E3.
        * destruct (bit) eqn:E4.
-         (* Not init epoch ∧ challenging epoch (t = t_max) ∧ CKA-norm/RED-norm (bit = true) *)
+         (* Not init epoch
+            and challenging epoch (t = t_max)
+            and CKA-norm/RED-norm (bit = true) *)
          ** ssprove_swap_seq_lhs [:: 1%N; 0%N].
             ssprove_swap_rhs 0%N.
             apply r_get_remember_lhs => rcv_l.
@@ -507,7 +516,9 @@ Proof.
               -- apply r_ret.
                  swap_exp.
                  done.
-         (* Not init epoch ∧ challenging epoch (t = t_max) ∧ CKA-norm/RED-norm (bit = false) *)
+         (* Not init epoch
+            and challenging epoch (t = t_max)
+            and CKA-norm/RED-norm (bit = false) *)
          ** ssprove_swap_seq_lhs [:: 1%N; 0%N].
             ssprove_swap_rhs 0%N.
             apply r_get_remember_lhs => rcv_l.
@@ -547,7 +558,7 @@ Proof.
                    get_heap_simpl.
                    done.
               -- apply r_ret. done.
-       (* non-init ∧ else case *)
+       (* non-init and else case *)
        * ssprove_swap_seq_rhs [:: 0%N].
          eapply r_get_remember_rhs => send_x0.
          ssprove_swap_seq_rhs [:: 0%N].
