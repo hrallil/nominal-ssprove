@@ -29,13 +29,13 @@ From NominalSSP Require Import DDH CKAScheme.
 Module CKA_KEM (GP : GroupParam).
 
 Module DDH' := DDH GP.
-Import CKAscheme DDH'.
+Import CKAScheme DDH'.
 
 Module GT := GroupTheorems GP.
 Import GP GT.
 
 Definition cka : cka_scheme := {|
-    Mes := 'fin #|el|
+    Mes := 'fin #|el| × 'fin #|el| 
   ; Key := 'fin #|el|
   ; StateS := 'fin #|el|
   ; StateR := 'fin #|exp|
@@ -60,48 +60,20 @@ Definition cka : cka_scheme := {|
 
   ; ckaS := λ γ x,
     {code
-      let h := γ in 
-      ret (x, op_exp op_g x, op_exp h x)
+      m ← Enc(γ);;
+      let (c, I) := m in
+      let pk := op_exp op_g x in
+      let sk := x in
+      ret (sk, (c, pk), I)
     }
 
   ; ckaR := λ γ m,
     {code
-      let x := γ in
-      let h := m in
-      ret (h, op_exp h x)
+      let (c, pk) := m in
+      I ← Dec(γ, c) ;;
+      ret (pk, I)
     }
   |}.
-
-(* KEM_scheme Definition cka kem : cka_scheme := {|
-    Mes := 'fin #|el|
-  ; Key := 'fin #|el|
-  ; StateS := 'fin #|el|
-  ; StateR := 'fin #|exp|
-
-  ; sampleKey :=
-    {code 
-      x ← sample uniform #|el|;;
-      ret x
-    }
-  ; keygen := 
-    {code 
-      x ← sample uniform #|exp| ;;
-      ret (op_exp op_g x, x)
-    } 
-  ; ckaS := λ γ,
-    {code
-      x ← sample uniform #|exp| ;;
-      let h := γ in 
-      ret (x, op_exp op_g x, op_exp h x)
-    }
-  ; ckaR := λ γ m,
-    {code
-      let x := γ in
-      let h := m in
-      ret (h, op_exp h x)
-    }
-  |}. *)
-
 
 Theorem correct_cka_simple : CORR0_simple cka ≈₀ CORR1_simple cka.
 Proof.
