@@ -20,7 +20,7 @@ From NominalSSP Require Import Prelude.
 Import PackageNotation.
 #[local] Open Scope package_scope.
 
-Module CKAscheme.
+Module CKAScheme.
 
 Record cka_scheme :=
   { Mes : choice_type
@@ -241,4 +241,4 @@ Definition CKA_PCS (K : cka_scheme) bit t :
     }
  ].
   
-End CKAscheme.
+End CKAScheme.

@@ -29,7 +29,7 @@ From NominalSSP Require Import DDH CKAScheme.
 Module CKA (GP : GroupParam).
 
 Module DDH' := DDH GP.
-Import CKAscheme DDH'.
+Import CKAScheme DDH'.
 
 Module GT := GroupTheorems GP.
 Import GP GT.
