@@ -72,37 +72,6 @@ Definition cka : cka_scheme := {|
     }
   |}.
 
-(* KEM_scheme Definition cka kem : cka_scheme := {|
-    Mes := 'fin #|el|
-  ; Key := 'fin #|el|
-  ; StateS := 'fin #|el|
-  ; StateR := 'fin #|exp|
-
-  ; sampleKey :=
-    {code 
-      x ← sample uniform #|el|;;
-      ret x
-    }
-  ; keygen := 
-    {code 
-      x ← sample uniform #|exp| ;;
-      ret (op_exp op_g x, x)
-    } 
-  ; ckaS := λ γ,
-    {code
-      x ← sample uniform #|exp| ;;
-      let h := γ in 
-      ret (x, op_exp op_g x, op_exp h x)
-    }
-  ; ckaR := λ γ m,
-    {code
-      let x := γ in
-      let h := m in
-      ret (h, op_exp h x)
-    }
-  |}. *)
-
-
 Theorem correct_cka_simple : CORR0_simple cka ≈₀ CORR1_simple cka.
 Proof.
   apply eq_rel_perf_ind_eq.
