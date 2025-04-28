@@ -186,13 +186,13 @@ Qed.
 
 Definition EPOCH := 3%N.
 
-Definition I_CKA_PCS (K : cka_scheme) :=
+Definition I_CKA_SECURITY (K : cka_scheme) :=
   [interface
     #val #[ EPOCH ] : ('stateR K) → (('mes K × 'key K) × 'option('stateR K))
   ].
 
-Definition CKA_PCS (K : cka_scheme) bit t :
-  game (I_CKA_PCS K) :=
+Definition CKA_SECURITY (K : cka_scheme) bit t :
+  game (I_CKA_SECURITY K) :=
   [module fset [:: epoch_loc ; send_loc K ; rcv_loc K] ;
     #def #[ EPOCH ] (r : ('stateR K)) : (('mes K × 'key K) × 'option('stateR K)) {
       _ ← init K ;;
