@@ -191,7 +191,7 @@ Definition I_CKA_SECURITY (K : cka_scheme) :=
     #val #[ EPOCH ] : ('stateR K) → (('mes K × 'key K) × 'option('stateR K))
   ].
 
-Definition CKA_SECURITY (K : cka_scheme) bit t :
+Definition CKA_SECURITY (K : cka_scheme) t bit :
   game (I_CKA_SECURITY K) :=
   [module fset [:: epoch_loc ; send_loc K ; rcv_loc K] ;
     #def #[ EPOCH ] (r : ('stateR K)) : (('mes K × 'key K) × 'option('stateR K)) {

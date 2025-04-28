@@ -226,10 +226,10 @@ Ltac swap_exp :=
   unfold op_exp, op_g in * ;
   rewrite !otf_fto expgAC.
 
-Theorem cka_security_ddh_perf bit t: (t > 1)%N →
+Theorem cka_security_ddh_perf t bit: (t > 1)%N →
   perfect
     (I_CKA_SECURITY cka_ddh)
-    (CKA_SECURITY cka_ddh bit t)
+    (CKA_SECURITY cka_ddh t bit)
     (CKA_SECURITY_RED t ∘ DDH bit).
 Proof.
   nssprove_share. 
@@ -627,12 +627,12 @@ Qed.
 
 Lemma cka_security_ddh
   : ∀ (A : adversary (I_CKA_SECURITY cka_ddh)) t, (t > 1)%N →
-  AdvFor (fun bit => CKA_SECURITY cka_ddh bit t) A = AdvFor DDH (A ∘ CKA_SECURITY_RED t).
+  AdvFor (CKA_SECURITY cka_ddh t) A = AdvFor DDH (A ∘ CKA_SECURITY_RED t).
 Proof.
   intros A t tH.
   unfold AdvFor.
-  rewrite (Adv_perfect_l (cka_security_ddh_perf _ t tH)).
-  rewrite (Adv_perfect_r (cka_security_ddh_perf _ t tH)).
+  rewrite (Adv_perfect_l (cka_security_ddh_perf t _ tH)).
+  rewrite (Adv_perfect_r (cka_security_ddh_perf t _ tH)).
   rewrite Adv_sep_link.
   done.
 Qed.

@@ -77,9 +77,11 @@ Record KEM_scheme := {
     KEM_decap : 'skey → 'ekey → 'smkey
 }.
 
+Context (η : KEM_scheme).
+
 (* ------------ KEM END -------------- *)
 
-Definition cka_kem (kem: KEM_scheme) : cka_scheme := {|
+Definition cka_kem : cka_scheme := {|
     Mes := chEKey × chPKey 
   ; Key := chKey
   ; StateS := chPKey
@@ -87,27 +89,27 @@ Definition cka_kem (kem: KEM_scheme) : cka_scheme := {|
 
   ; sampleKey :=
     {code 
-      '(kemPKey, _) ← kem.(KEM_kgen) ;;
-      '(kemKey, _) ← kem.(KEM_encap)(kemPKey) ;;
+      '(kemPKey, _) ← η.(KEM_kgen) ;;
+      '(kemKey, _) ← η.(KEM_encap)(kemPKey) ;;
       ret kemKey
     }
 
   ; sampleX := 
     {code 
-      '(kemPKey, kemSKey) ← kem.(KEM_kgen) ;;
+      '(_, kemSKey) ← η.(KEM_kgen) ;;
       ret (kemSKey)
     }
 
   ; keygen := 
     {code
-      '(kemPKey, kemSKey) ← kem.(KEM_kgen) ;;
+      '(kemPKey, kemSKey) ← η.(KEM_kgen) ;;
       ret (kemPKey, kemSKey)
     }
 
   ; ckaS := λ γ x,
     {code
-      '(kemKey, kemEKey) ← kem.(KEM_encap)(γ) ;;
-      '(kemPKey, kemSKey) ← kem.(KEM_kgen) ;;
+      '(kemKey, kemEKey) ← η.(KEM_encap)(γ) ;;
+      '(kemPKey, kemSKey) ← η.(KEM_kgen) ;;
 
       (* (sk, (c, pk), I) *)
       ret (kemSKey, (kemEKey, kemPKey), kemKey)
@@ -116,18 +118,22 @@ Definition cka_kem (kem: KEM_scheme) : cka_scheme := {|
   ; ckaR := λ γ m,
     {code
       let '(kemEKey, kemPKey) := m in
-      let kemKey := kem.(KEM_decap)(γ)(kemEKey) in
+      let kemKey := η.(KEM_decap)(γ)(kemEKey) in
       ret (kemPKey, kemKey)
     }
   |}.
-  
+
+
+Context (pkey_pair : (chProd 'pkey 'skey) → Prop).
+Context (KEM_kgen_spec : ⊢ₛ η.(KEM_kgen) ⦃ pkey_pair ⦄).
+
 Definition CKA_CORR_KEM := 0%N.
 
-Definition I_CORR_KEM_simple (K : KEM_scheme) :=
+Definition I_CORR_KEM_simple :=
   [interface #val #[ CKA_CORR_KEM ] : 'unit  → ('smkey × 'smkey)].
 
 Definition CORR0_kem (K : KEM_scheme) :
-  game (I_CORR_KEM_simple K) :=
+  game I_CORR_KEM_simple :=
   [module no_locs ;
     #def #[ CKA_CORR_KEM ] (_ : 'unit) : ('smkey × 'smkey) {
       '(kemPKey, kemSKey) ← K.(KEM_kgen) ;;
@@ -140,7 +146,7 @@ Definition CORR0_kem (K : KEM_scheme) :
   ].
   
 Definition CORR1_kem (K : KEM_scheme) :
-  game (I_CORR_KEM_simple K) :=
+  game I_CORR_KEM_simple :=
   [module no_locs ;
     #def #[ CKA_CORR_KEM ] (_ : 'unit) : ('smkey × 'smkey) {
       '(kemPKey, kemSKey) ← K.(KEM_kgen) ;;
@@ -151,17 +157,17 @@ Definition CORR1_kem (K : KEM_scheme) :
   ].
 
 Definition CORR_KEM_RED (K : cka_scheme) :
-  game (I_CORR_simple K) :=
+  module I_CORR_KEM_simple (I_CORR_simple K) :=
   [module no_locs ;
     (* CKAKEY matches the oracle name from CORR_simple from the CKAScheme.v *)
     #def #[ CKAKEY ] (_ : 'unit) : 'unit {
       #import {sig #[ CKA_CORR_KEM ] : 'unit → ('smkey × 'smkey) } as GET_CORR_KEM ;;
 
-      (*
-        This throws an error
-      
       '(kemKey, kemKey') ← GET_CORR_KEM tt ;;
-      #assert (kemKey == kemKey') ;; *)
+      #assert ((kemKey == kemKey')%bool) ;;
+
+      '(kemKey, kemKey') ← GET_CORR_KEM tt ;;
+      #assert ((kemKey == kemKey')%bool) ;;
 
       @ret 'unit Datatypes.tt
     }
@@ -178,27 +184,38 @@ Definition CORR_KEM_RED (K : cka_scheme) :
       (CORR_KEM_RED (cka_kem kem) ∘ CORR1_kem kem)%sep
   *)
 Theorem perfect_1 (kem : KEM_scheme) :
-  perfect (I_CORR_simple (cka_kem kem))(CORR1_simple (cka_kem kem))
-          (CORR_KEM_RED (cka_kem kem) ∘ CORR1_kem kem).
+  perfect (I_CORR_simple (cka_kem))(CORR1_simple (cka_kem))
+          (CORR_KEM_RED (cka_kem) ∘ CORR1_kem kem).
 Proof.
+  nssprove_share.
   eapply prove_perfect.
   apply eq_rel_perf_ind_eq.
   simplify_eq_rel m.
-  apply r_ret.
-  done.
+  simplify_linking.
+  ssprove_code_simpl; simpl.
+  rewrite cast_fun_K.
+  rewrite bind_assoc.
+  rewrite bind_assoc.
+  ssprove_code_simpl; simpl.
+  eapply rsymmetry.
 Admitted.
 
-
 (* Here we do now know how to unfold the KEMs such as (x ← KEM_kgen kem ;;) *)
-Theorem perfect_0 (kem : KEM_scheme) :
-  perfect (I_CORR_simple (cka_kem kem))(CORR0_simple (cka_kem kem))
-          (CORR_KEM_RED (cka_kem kem) ∘ CORR0_kem kem).
+Theorem perfect_0 :
+  perfect (I_CORR_simple (cka_kem))(CORR0_simple (cka_kem))
+          (CORR_KEM_RED (cka_kem) ∘ CORR0_kem η).
 Proof.
+  nssprove_share.
   eapply prove_perfect.
   apply eq_rel_perf_ind_eq.
   simplify_eq_rel m.
-  ssprove_code_simpl.
-  admit.
+  simplify_linking.
+  ssprove_code_simpl; simpl.
+  rewrite cast_fun_K.
+  rewrite bind_assoc.
+  rewrite bind_assoc.
+  ssprove_code_simpl; simpl.
+  eapply r_scheme_bind_spec. 1: eapply KEM_kgen_spec. intros [pk' sk'] pps.
 Admitted.
 
 
