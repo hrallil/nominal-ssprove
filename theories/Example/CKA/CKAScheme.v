@@ -211,33 +211,37 @@ Definition CKA_PCS (K : cka_scheme) bit t :
 
         (* Receive *)
         stateR ← get rcv_loc K ;;
-        '(stateS', k) ← K.(ckaR) stateR m ;;
-
+        '(stateS', k') ← K.(ckaR) stateR m ;;
+        
+        #assert (k == k') ;;
+        
         #put (rcv_loc K) := stateR' ;;
         #put (send_loc K) := stateS' ;;
         
         (* Challenge Epoch *)
         if (epoch_inc == t) then
           if (bit) then
-            @ret (('mes K × 'key K) × 'option('stateR K)) ((m, k), None)
-          else
-            k' ← K.(sampleKey) ;;
             @ret (('mes K × 'key K) × 'option('stateR K)) ((m, k'), None)
+          else
+            k'' ← K.(sampleKey) ;;
+            @ret (('mes K × 'key K) × 'option('stateR K)) ((m, k''), None)
 
         (* Pre-challenge Epoch *)
         else
-          @ret (('mes K × 'key K) × 'option('stateR K)) ((m, k), None)
+          @ret (('mes K × 'key K) × 'option('stateR K)) ((m, k'), None)
       else
         '(stateR', m, k) ← K.(ckaS) stateS r ;;
 
         (* Receive *)
         stateR ← get rcv_loc K ;;
-        '(stateS', k) ← K.(ckaR) stateR m ;;
-
+        '(stateS', k') ← K.(ckaR) stateR m ;;
+        
+        #assert (k == k') ;;
+        
         #put (rcv_loc K) := stateR' ;;
         #put (send_loc K) := stateS' ;;
 
-        @ret (('mes K × 'key K) × 'option('stateR K)) ((m, k), Some(stateR'))
+        @ret (('mes K × 'key K) × 'option('stateR K)) ((m, k'), Some(stateR'))
     }
  ].
   

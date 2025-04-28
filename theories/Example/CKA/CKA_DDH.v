@@ -244,8 +244,9 @@ Notation inv0 t_max := (
 ).
 
 Ltac swap_exp :=
-  unfold op_exp, op_g in *;
+  unfold op_exp, op_g in * ;
   rewrite !otf_fto expgAC.
+  
 
 Theorem cka_pcs_ddh_perf bit t: (t > 1)%N →
   perfect (I_CKA_PCS cka)(CKA_PCS cka bit t)(RED t ∘ DDH bit).
@@ -320,6 +321,9 @@ Proof.
             ssprove_swap_seq_rhs [:: 2%N; 1%N; 0%N].
             ssprove_swap_seq_lhs [:: 2%N; 1%N; 0%N].
             ssprove_sync => a.
+            swap_exp.
+            rewrite eq_refl.
+            simpl.
             ssprove_swap_seq_rhs [:: 0%N; 3%N; 2%N; 1%N].
             ssprove_contract_put_get_rhs.
             ssprove_swap_seq_rhs [:: 0%N; 3%N; 2%N; 1%N].
@@ -360,6 +364,9 @@ Proof.
             ssprove_contract_put_rhs.
             ssprove_swap_seq_lhs [:: 1%N; 0%N; 2%N; 1%N].
             ssprove_contract_put_get_lhs.
+            swap_exp.
+            rewrite eq_refl.
+            simpl.
             ssprove_swap_seq_lhs [:: 2%N; 1%N].
             ssprove_contract_put_lhs.
             ssprove_swap_seq_lhs [:: 1%N; 0%N; 2%N; 1%N].
@@ -379,7 +386,6 @@ Proof.
                   get_heap_simpl.
                   done.
             -- apply r_ret.
-               swap_exp.
                done.
         +  symmetry. apply /eqP. intro h. subst. done.  
       -  symmetry. apply /eqP. intro h. subst. done.
@@ -398,7 +404,7 @@ Proof.
        ssprove_sync => a.
        ssprove_swap_seq_rhs [:: 1%N; 0%N; 2%N; 1%N].
        ssprove_swap_seq_lhs [:: 0%N; 1%N].
-       eapply r_get_remember_lhs => __.
+       eapply r_get_remember_lhs => x0.
        apply r_forget_lhs.
        eapply r_get_remember_lhs => rcv_l.
        eapply r_get_remember_rhs => rcv_r.
