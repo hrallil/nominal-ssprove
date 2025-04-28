@@ -94,22 +94,23 @@ Definition cka_kem : cka_scheme := {|
       ret kemKey
     }
 
-  ; sampleX := 
-    {code 
-      '(_, kemSKey) ← η.(KEM_kgen) ;;
-      ret (kemSKey)
-    }
-
   ; keygen := 
     {code
       '(kemPKey, kemSKey) ← η.(KEM_kgen) ;;
       ret (kemPKey, kemSKey)
     }
 
-  ; ckaS := λ γ x,
+  (* not used in KEM *)
+  ; keygen_corr := λ r,
+    {code
+      '(kemPKey, kemSKey) ← η.(KEM_kgen) ;;
+      ret (kemPKey, kemSKey)
+    }
+
+  ; ckaS := λ γ kgen,
     {code
       '(kemKey, kemEKey) ← η.(KEM_encap)(γ) ;;
-      '(kemPKey, kemSKey) ← η.(KEM_kgen) ;;
+      let '(kemPKey, kemSKey) := kgen in
 
       (* (sk, (c, pk), I) *)
       ret (kemSKey, (kemEKey, kemPKey), kemKey)

@@ -46,10 +46,9 @@ Definition cka_ddh : cka_scheme := {|
       ret x
     }
 
-  ; sampleX := 
+  ; keygen_corr := λ r,
     {code 
-      x ← sample uniform #|exp| ;;
-      ret (x)
+      ret (op_exp op_g r, r)
     }
 
   ; keygen := 
@@ -58,10 +57,12 @@ Definition cka_ddh : cka_scheme := {|
       ret (op_exp op_g x, x)
     }
 
-  ; ckaS := λ γ x,
+  ; ckaS := λ γ kgen,
     {code
-      let h := γ in 
-      ret (x, op_exp op_g x, op_exp h x)
+      let h := γ in
+      let '(stateS, stateR) := kgen in
+
+      ret (stateR, stateS, op_exp h stateR)
     }
 
   ; ckaR := λ γ m,
@@ -97,7 +98,6 @@ Proof.
     - reflexivity.
     - apply H.
 Qed.
-
 
 Theorem correct_cka : CORR0 cka_ddh ≈₀ CORR1 cka_ddh.
 Proof.
