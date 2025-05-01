@@ -29,12 +29,13 @@ Record cka_scheme :=
   ; StateR: choice_type
 
   ; sampleKey : code fset0 [interface] (Key)
-  
-  ; sampleX : code fset0 [interface] (StateR)
-  
-  ; keygen : code fset0 [interface] (StateS × StateR)
 
-  ; ckaS : ∀ (state: StateS) (x: StateR),
+  ; keygen : code fset0 [interface] (StateS × StateR)
+  
+  ; keygen_corr : ∀ (r: StateR),
+      code fset0 [interface] (StateS × StateR)
+
+  ; ckaS : ∀ (state: StateS) (kgen: StateS × StateR),
       code fset0 [interface] (StateR × Mes × Key)
 
   ; ckaR : ∀ (state: StateR) (m : Mes),
@@ -83,15 +84,15 @@ Definition CORR0_simple (K : cka_scheme) :
   [module no_locs ;
     #def #[ CKAKEY ] (_ : 'unit) : 'unit {
       '(pk, x) ← K.(keygen) ;;
-      
-      x' ← K.(sampleX) ;;
-      '(stateA, m, kA) ← K.(ckaS) pk x' ;;
+
+      k ← K.(keygen) ;;
+      '(stateA, m, kA) ← K.(ckaS) pk k ;;
       '(stateB, kB) ← K.(ckaR) x m ;;
 
       #assert (kA == kB) ;;
 
-      x'' ← K.(sampleX) ;;
-      '(stateB', m', kB') ← K.(ckaS) stateB x'' ;;
+      k' ← K.(keygen) ;;
+      '(stateB', m', kB') ← K.(ckaS) stateB k' ;;
       '(stateA', kA') ← K.(ckaR) stateA m' ;;
 
       #assert (kA' == kB') ;;
@@ -138,8 +139,8 @@ Definition CORR0 (K : cka_scheme) :
       repeat (n) ((pk, x) : ('stateS K × 'stateR K))  (fun state =>       
         let '(stateS, stateR) := state in
         
-        x' ← K.(sampleX) ;;
-        '(stateR', m, kS) ← K.(ckaS) stateS x' ;;
+        k ← K.(keygen) ;;
+        '(stateR', m, kS) ← K.(ckaS) stateS k ;;
         '(stateS', kR) ← K.(ckaR) stateR m ;;
 
         #assert (kS == kR) ;;
@@ -186,13 +187,13 @@ Qed.
 
 Definition EPOCH := 3%N.
 
-Definition I_CKA_PCS (K : cka_scheme) :=
+Definition I_CKA_SECURITY (K : cka_scheme) :=
   [interface
     #val #[ EPOCH ] : ('stateR K) → (('mes K × 'key K) × 'option('stateR K))
   ].
 
-Definition CKA_PCS (K : cka_scheme) bit t :
-  game (I_CKA_PCS K) :=
+Definition CKA_SECURITY (K : cka_scheme) t bit :
+  game (I_CKA_SECURITY K) :=
   [module fset [:: epoch_loc ; send_loc K ; rcv_loc K] ;
     #def #[ EPOCH ] (r : ('stateR K)) : (('mes K × 'key K) × 'option('stateR K)) {
       _ ← init K ;;
@@ -206,38 +207,43 @@ Definition CKA_PCS (K : cka_scheme) bit t :
 
       (* Cannot corrupt on t - 1 and t *)
       if ((epoch_inc.+1 == t) || (epoch_inc == t)) then
-        x ← K.(sampleX) ;;
-        '(stateR', m, k) ← K.(ckaS) stateS x ;;
+        kgen ← K.(keygen) ;;
+        '(stateR', m, k) ← K.(ckaS) stateS kgen ;;
 
         (* Receive *)
         stateR ← get rcv_loc K ;;
-        '(stateS', k) ← K.(ckaR) stateR m ;;
-
+        '(stateS', k') ← K.(ckaR) stateR m ;;
+        
+        #assert (k == k') ;;
+        
         #put (rcv_loc K) := stateR' ;;
         #put (send_loc K) := stateS' ;;
         
         (* Challenge Epoch *)
         if (epoch_inc == t) then
           if (bit) then
-            @ret (('mes K × 'key K) × 'option('stateR K)) ((m, k), None)
-          else
-            k' ← K.(sampleKey) ;;
             @ret (('mes K × 'key K) × 'option('stateR K)) ((m, k'), None)
+          else
+            k'' ← K.(sampleKey) ;;
+            @ret (('mes K × 'key K) × 'option('stateR K)) ((m, k''), None)
 
         (* Pre-challenge Epoch *)
         else
-          @ret (('mes K × 'key K) × 'option('stateR K)) ((m, k), None)
+          @ret (('mes K × 'key K) × 'option('stateR K)) ((m, k'), None)
       else
-        '(stateR', m, k) ← K.(ckaS) stateS r ;;
+        kgen ← K.(keygen_corr) r ;;
+        '(stateR', m, k) ← K.(ckaS) stateS kgen ;;
 
         (* Receive *)
         stateR ← get rcv_loc K ;;
-        '(stateS', k) ← K.(ckaR) stateR m ;;
-
+        '(stateS', k') ← K.(ckaR) stateR m ;;
+        
+        #assert (k == k') ;;
+        
         #put (rcv_loc K) := stateR' ;;
         #put (send_loc K) := stateS' ;;
 
-        @ret (('mes K × 'key K) × 'option('stateR K)) ((m, k), Some(stateR'))
+        @ret (('mes K × 'key K) × 'option('stateR K)) ((m, k'), Some(stateR'))
     }
  ].
   
