@@ -16,11 +16,11 @@ Set Bullet Behavior "Strict Subproofs".
 Set Default Goal Selector "!".
 Set Primitive Projections.
 
-From NominalSSP Require Import Prelude Group Misc.
+From NominalSSP Require Import Prelude.
 Import PackageNotation.
 #[local] Open Scope package_scope.
 
-Module CKAscheme.
+Module CKAScheme.
 
 Record cka_scheme :=
   { Mes : choice_type
@@ -30,9 +30,11 @@ Record cka_scheme :=
 
   ; sampleKey : code fset0 [interface] (Key)
   
+  ; sampleX : code fset0 [interface] (StateR)
+  
   ; keygen : code fset0 [interface] (StateS × StateR)
 
-  ; ckaS : ∀ (state: StateS),
+  ; ckaS : ∀ (state: StateS) (x: StateR),
       code fset0 [interface] (StateR × Mes × Key)
 
   ; ckaR : ∀ (state: StateR) (m : Mes),
@@ -81,13 +83,15 @@ Definition CORR0_simple (K : cka_scheme) :
   [module no_locs ;
     #def #[ CKAKEY ] (_ : 'unit) : 'unit {
       '(pk, x) ← K.(keygen) ;;
-
-      '(stateA, m, kA) ← K.(ckaS) pk ;;
+      
+      x' ← K.(sampleX) ;;
+      '(stateA, m, kA) ← K.(ckaS) pk x' ;;
       '(stateB, kB) ← K.(ckaR) x m ;;
 
       #assert (kA == kB) ;;
 
-      '(stateB', m', kB') ← K.(ckaS) stateB ;;
+      x'' ← K.(sampleX) ;;
+      '(stateB', m', kB') ← K.(ckaS) stateB x'' ;;
       '(stateA', kA') ← K.(ckaR) stateA m' ;;
 
       #assert (kA' == kB') ;;
@@ -133,7 +137,9 @@ Definition CORR0 (K : cka_scheme) :
       
       repeat (n) ((pk, x) : ('stateS K × 'stateR K))  (fun state =>       
         let '(stateS, stateR) := state in
-        '(stateR', m, kS) ← K.(ckaS) stateS ;;
+        
+        x' ← K.(sampleX) ;;
+        '(stateR', m, kS) ← K.(ckaS) stateS x' ;;
         '(stateS', kR) ← K.(ckaR) stateR m ;;
 
         #assert (kS == kR) ;;
@@ -153,111 +159,86 @@ Definition CORR1 (K : cka_scheme) :
 
 Definition CORR K b := if b then CORR0 K else CORR1 K.
 
+Definition epoch_loc : Location := ('nat; 11%N).
+Definition send_loc (K: cka_scheme) : Location := ('stateS K; 13%N).
+Definition rcv_loc (K: cka_scheme) : Location := ('stateR K; 16%N).
 
-Definition INIT := 3%N.
-Definition SEND_A := 4%N.
-Definition RCV_A := 5%N.
-Definition CHALL_A := 6%N.
-Definition SEND_B := 7%N.
-Definition RCV_B := 8%N.
-Definition CHALL_B := 9%N.
+Definition init (K : cka_scheme) : raw_code ('unit) :=
+  locked (epoch ← get epoch_loc ;;
+  match epoch with
+  | 0%N =>
+    '(pk, x) ← K.(keygen) ;;
+    #put (send_loc K) := pk ;;
+    #put (rcv_loc K) := x ;;
+
+    @ret 'unit Datatypes.tt
+  | _.+1 =>
+    @ret 'unit Datatypes.tt
+  end).
+
+#[export] Instance init_valid {K} {L : {fset Location}} {I : Interface}
+  : epoch_loc \in L → send_loc K \in L → rcv_loc K \in L → ValidCode L I (init K).
+Proof.
+  intros epoch send rcv.
+  rewrite /init -lock.
+  ssprove_valid.
+Qed.
+
+Definition EPOCH := 3%N.
 
 Definition I_CKA_PCS (K : cka_scheme) :=
   [interface
-    #val #[ INIT ] : 'unit → 'unit ;
-
-    #val #[ SEND_A ] : 'unit → ('mes K × 'key K) ;
-    #val #[ RCV_A ] : 'mes K → 'unit;
-
-    #val #[ SEND_B ] : 'unit → ('mes K × 'key K) ;
-    #val #[ RCV_B ] : 'mes K → 'unit 
+    #val #[ EPOCH ] : ('stateR K) → (('mes K × 'key K) × 'option('stateR K))
   ].
 
-
-Definition epoch_a : Location := ('nat; 10%N).
-Definition epoch_b : Location := ('nat; 11%N).
-
-Definition state_sa_loc (K: cka_scheme) : Location := ('stateS K; 13%N).
-Definition state_sb_loc (K: cka_scheme) : Location := ('stateS K; 14%N).
-Definition state_ra_loc (K: cka_scheme) : Location := ('stateR K; 15%N).
-Definition state_rb_loc (K: cka_scheme) : Location := ('stateR K; 16%N).
-
-Definition CKA_PCS_locs (K : cka_scheme) :=
-  fset [:: state_sa_loc K ; state_sb_loc K ; state_ra_loc K ; state_rb_loc K ; epoch_a ; epoch_b].
-
-Definition CKA_PCS (K : cka_scheme) b t :
+Definition CKA_PCS (K : cka_scheme) bit t :
   game (I_CKA_PCS K) :=
-  [module CKA_PCS_locs K ;
-    #def #[ INIT ] (_ : 'unit) : 'unit {
-      '(pk, x) ← K.(keygen) ;;
+  [module fset [:: epoch_loc ; send_loc K ; rcv_loc K] ;
+    #def #[ EPOCH ] (r : ('stateR K)) : (('mes K × 'key K) × 'option('stateR K)) {
+      _ ← init K ;;
 
-      #put (state_sa_loc K) := pk ;;
-      #put (state_sb_loc K) := pk ;;
-      #put (state_ra_loc K) := x ;;
-      #put (state_rb_loc K) := x ;;
-
-      #put epoch_a := 0 ;;
-      #put epoch_b := 0 ;;
-
-      @ret 'unit Datatypes.tt
-    } ;
-
-    #def #[ SEND_A ] (_ : 'unit) : ('mes K × 'key K) {
-      epoch ← get epoch_a ;;
+      epoch ← get epoch_loc ;;
       let epoch_inc := epoch.+1 in
-      #put epoch_a := epoch_inc ;;
+      #put epoch_loc := epoch_inc ;;
 
-      stateSA ← get state_sa_loc K ;;
-      '(stateRA, m, k) ← K.(ckaS) stateSA ;;
-      #put (state_ra_loc K) := stateRA ;;
+      (* Send *)
+      stateS ← get send_loc K ;;
 
-      if (t == epoch_inc) && ~~b then
-        k' ← K.(sampleKey) ;;
-        @ret ('mes K × 'key K) (m, k')
+      (* Cannot corrupt on t - 1 and t *)
+      if ((epoch_inc.+1 == t) || (epoch_inc == t)) then
+        x ← K.(sampleX) ;;
+        '(stateR', m, k) ← K.(ckaS) stateS x ;;
+
+        (* Receive *)
+        stateR ← get rcv_loc K ;;
+        '(stateS', k) ← K.(ckaR) stateR m ;;
+
+        #put (rcv_loc K) := stateR' ;;
+        #put (send_loc K) := stateS' ;;
+        
+        (* Challenge Epoch *)
+        if (epoch_inc == t) then
+          if (bit) then
+            @ret (('mes K × 'key K) × 'option('stateR K)) ((m, k), None)
+          else
+            k' ← K.(sampleKey) ;;
+            @ret (('mes K × 'key K) × 'option('stateR K)) ((m, k'), None)
+
+        (* Pre-challenge Epoch *)
+        else
+          @ret (('mes K × 'key K) × 'option('stateR K)) ((m, k), None)
       else
-        @ret ('mes K × 'key K) (m, k)
-    } ;
+        '(stateR', m, k) ← K.(ckaS) stateS r ;;
 
-    #def #[ RCV_A ] (m : 'mes K) : 'unit {
-      epoch ← get epoch_a ;;
-      #put epoch_a := epoch.+1 ;;
+        (* Receive *)
+        stateR ← get rcv_loc K ;;
+        '(stateS', k) ← K.(ckaR) stateR m ;;
 
-      stateRA ← get state_ra_loc K ;;
-      '(stateSA, k) ← K.(ckaR) stateRA m ;;
+        #put (rcv_loc K) := stateR' ;;
+        #put (send_loc K) := stateS' ;;
 
-      #put (state_sa_loc K) := stateSA ;;
-
-      @ret 'unit Datatypes.tt
-    } ;
-
-    #def #[ SEND_B ] (_ : 'unit) : ('mes K × 'key K) {
-      epoch ← get epoch_b ;;
-      let epoch_inc := epoch.+1 in
-      #put epoch_b := epoch.+1 ;;
-
-      stateSB ← get state_sb_loc K ;;
-      '(stateRB, m, k) ← K.(ckaS) stateSB ;;
-
-      #put (state_rb_loc K) := stateRB ;;
-    
-      if (t == epoch_inc) && ~~b then
-        k' ← K.(sampleKey) ;;
-        @ret ('mes K × 'key K) (m, k')
-      else
-        @ret ('mes K × 'key K) (m, k)
-    } ;
-
-    #def #[ RCV_B ] (m : 'mes K) : 'unit {
-      epoch ← get epoch_b ;;
-      #put epoch_b := epoch.+1 ;;
-
-      stateRB ← get state_rb_loc K ;;
-      '(stateSB, k) ← K.(ckaR) stateRB m ;;
-
-      #put (state_sb_loc K) := stateSB ;;
-
-      @ret 'unit Datatypes.tt
-    } 
+        @ret (('mes K × 'key K) × 'option('stateR K)) ((m, k), Some(stateR'))
+    }
  ].
   
-End CKAscheme.
+End CKAScheme.

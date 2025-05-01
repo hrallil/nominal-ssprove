@@ -1,6 +1,4 @@
 -R theories NominalSSP
-theories/Example/CKA/CKAScheme.v
-theories/Example/CKA/CKA.v
 
 theories/FsetSolve.v
 theories/SSProve.v
@@ -24,3 +22,9 @@ theories/Example/Sigma/Group.v
 theories/Example/Sigma/Sigma.v
 theories/Example/Sigma/Schnorr.v
 theories/Example/Sigma/OR.v
+
+theories/Example/CKA/CKAScheme.v
+theories/Example/CKA/KEMScheme.v
+theories/Example/CKA/CKA_DDH.v
+theories/Example/CKA/CKA_KEM.v
+
