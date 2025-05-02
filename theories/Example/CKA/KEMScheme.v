@@ -23,38 +23,81 @@ Import PackageNotation.
 Module KEMScheme.
 
 Record kem_scheme := {
-  KEM_pkey : choice_type ;
-  KEM_skey: choice_type ;
-  KEM_key: choice_type ;
-  KEM_ekey: choice_type ;
+    (* Public Key *)
+    KEM_PKey : choice_type ;
 
-  KEM_kgen : code fset0 [interface] (chProd KEM_pkey KEM_skey) ;
-  KEM_encap : KEM_pkey → code fset0 [interface] (chProd KEM_key KEM_ekey) ;
-  KEM_decap : KEM_skey → KEM_ekey → KEM_key
+    (* Secret Key *)
+    KEM_SKey : choice_type ;
+
+    (* Encapsulation *)
+    KEM_EKey : choice_type ;
+
+    (* Symmetric Key *)
+    KEM_Key : choice_type ;
+
+    KEM_kgen : code fset0 [interface] (KEM_PKey × KEM_SKey) ;
+    KEM_encap : KEM_PKey → code fset0 [interface] (KEM_Key × KEM_EKey) ;
+    KEM_decap : KEM_SKey → KEM_EKey → KEM_Key ;
+
+    KEM_keypair : (KEM_PKey × KEM_SKey) → Prop ;
+    KEM_kgen_spec: ⊢ₛ KEM_kgen ⦃ KEM_keypair ⦄ ;
+    encap_spec (pk : KEM_PKey) (kek : chProd KEM_Key KEM_EKey) : Prop :=
+      ∀ sk, KEM_keypair (pk, sk) → KEM_decap sk kek.2 = kek.1 ;
+    KEM_encap_spec : ∀ (pk : KEM_PKey), ⊢ₛ KEM_encap pk ⦃ (encap_spec pk) ⦄
 }.
 
-Notation " 'kemPKey p " := (KEM_pkey p)
+Notation " 'kemPKey p " := (KEM_PKey p)
   (at level 3) : package_scope.
-
-Notation " 'kemPKey p " := (KEM_pkey p)
+Notation " 'kemPKey p " := (KEM_PKey p)
   (in custom pack_type at level 2, p constr at level 20).
 
-Notation " 'kemSKey p " := (KEM_skey p)
+Notation " 'kemSKey p " := (KEM_SKey p)
   (at level 3) : package_scope.
-
-Notation " 'kemSKey p " := (KEM_skey p)
+Notation " 'kemSKey p " := (KEM_SKey p)
   (in custom pack_type at level 2, p constr at level 20).
 
-Notation " 'kemKey p " := (KEM_key p)
+Notation " 'kemKey p " := (KEM_Key p)
   (in custom pack_type at level 2, p constr at level 20).
-
-Notation " 'kemKey p " := (KEM_key p)
+Notation " 'kemKey p " := (KEM_Key p)
   (at level 3) : package_scope.
 
-Notation " 'kemEKey p " := (KEM_ekey p)
+Notation " 'kemEKey p " := (KEM_EKey p)
   (in custom pack_type at level 2, p constr at level 20).
-
-Notation " 'kemEKey p " := (KEM_ekey p)
+Notation " 'kemEKey p " := (KEM_EKey p)
   (at level 3) : package_scope.
-  
+
+Definition GET := 0%N.
+
+Definition I_KEM (K : kem_scheme) :=
+  [interface
+    #val #[ GET ] : 'unit  → ('kemKey K × 'kemKey K)
+  ].
+
+Definition KEM_1 (K : kem_scheme) :
+  game (I_KEM K) :=
+  [module no_locs ;
+    #def #[ GET ] (_ : 'unit) : ('kemKey K × 'kemKey K) {
+      '(kemPKey, kemSKey) ← K.(KEM_kgen) ;;
+      '(kemKey, kemEKey) ← K.(KEM_encap)(kemPKey) ;;
+
+      ret (kemKey, kemKey)
+    }
+  ].
+
+Definition KEM_0 (K : kem_scheme) :
+  game (I_KEM K) :=
+  [module no_locs ;
+    #def #[ GET ] (_ : 'unit) : ('kemKey K × 'kemKey K) {
+      '(kemPKey, kemSKey) ← K.(KEM_kgen) ;;
+
+      '(kemKey, kemEKey) ← K.(KEM_encap)(kemPKey) ;;
+
+      let kemKey' := K.(KEM_decap)(kemSKey)(kemEKey) in
+
+      ret (kemKey, kemKey')
+    }
+  ].
+
+Definition KEM (K : kem_scheme) b := if b then KEM_0 K else KEM_1 K.
+
 End KEMScheme.

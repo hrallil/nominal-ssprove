@@ -24,68 +24,24 @@ Import PackageNotation.
 Import GroupScope GRing.Theory.
 Require Import Lia.
 
-From NominalSSP Require Import DDH CKAScheme.
+From NominalSSP Require Import DDH CKAScheme KEMScheme.
 
 Module CKA_KEM (GP : GroupParam).
 
 Module DDH' := DDH GP.
 Import CKAScheme DDH'.
+Import KEMScheme DDH'.
 
 Module GT := GroupTheorems GP.
 Import GP GT.
 
-(* ------------ KEM START -------------- *)
+Context (η : kem_scheme).
 
-(* Public and secret key *)
-Context (chPKey chSKey : choice_type).
-
-(* Plain text *)
-Context (chPlain : choice_type).
-
-(* Symmetric key *)
-Context (keyD : Op).
-Definition chKey := keyD.π1.
-
-Context (ekeyD : Op).
-Definition chEKey := ekeyD.π1.
-
-(* Cipher text *)
-Context (cipherD : Op).
-Definition chCipher := cipherD.π1.
-
-Notation "'smkey" := (chKey) (in custom pack_type at level 2).
-Notation "'smkey" := (chKey) (at level 2) : package_scope.
-
-Notation "'pkey" := (chPKey) (in custom pack_type at level 2).
-Notation "'pkey" := (chPKey) (at level 2) : package_scope.
-
-Notation "'skey" := (chSKey) (in custom pack_type at level 2).
-Notation "'skey" := (chSKey) (at level 2) : package_scope.
-
-Notation "'plain" := (chPlain) (in custom pack_type at level 2).
-Notation "'plain" := (chPlain) (at level 2) : package_scope.
-
-Notation "'ekey" := (chEKey) (in custom pack_type at level 2).
-Notation "'ekey" := (chEKey) (at level 2) : package_scope.
-
-Notation "'cipher" := (chCipher) (in custom pack_type at level 2).
-Notation "'cipher" := (chCipher) (at level 2) : package_scope.
-
-Record KEM_scheme := {
-    KEM_kgen : code fset0 [interface] ('pkey × 'skey) ;
-    KEM_encap : 'pkey → code fset0 [interface] ('smkey × 'ekey) ;
-    KEM_decap : 'skey → 'ekey → 'smkey
-}.
-
-Context (η : KEM_scheme).
-
-(* ------------ KEM END -------------- *)
-
-Definition cka_kem : cka_scheme := {|
-    Mes := chEKey × chPKey 
-  ; Key := chKey
-  ; StateS := chPKey
-  ; StateR := chSKey
+Definition cka_kem: cka_scheme := {|
+    Mes := η.(KEM_EKey) × η.(KEM_PKey) 
+  ; Key := η.(KEM_Key) 
+  ; StateS := η.(KEM_PKey) 
+  ; StateR := η.(KEM_SKey) 
 
   ; sampleKey :=
     {code 
@@ -94,14 +50,7 @@ Definition cka_kem : cka_scheme := {|
       ret kemKey
     }
 
-  ; keygen := 
-    {code
-      '(kemPKey, kemSKey) ← η.(KEM_kgen) ;;
-      ret (kemPKey, kemSKey)
-    }
-
-  (* not used in KEM *)
-  ; keygen_corr := λ r,
+  ; keygen :=
     {code
       '(kemPKey, kemSKey) ← η.(KEM_kgen) ;;
       ret (kemPKey, kemSKey)
@@ -122,211 +71,65 @@ Definition cka_kem : cka_scheme := {|
       let kemKey := η.(KEM_decap)(γ)(kemEKey) in
       ret (kemPKey, kemKey)
     }
-  |}.
-  
-Inductive NoFail {A} : raw_code A → Prop :=
-  | NoFail_ret : ∀ x,
-      NoFail (ret x)
-  | NoFail_sampler : ∀ op k,
-      LosslessOp op →
-      (∀ v, NoFail (k v)) →
-      NoFail (pkg_core_definition.sampler op k).
 
-Lemma r_NoFail_L {A B : choiceType} (c : raw_code B) (c₀ : B → raw_code A) (c₁ : raw_code A)
-    (pre : precond) (post : postcond A A) :
-    NoFail c →
-    (∀ x : B, ⊢ ⦃ pre ⦄ c₀ x ≈ c₁ ⦃ post ⦄) →
-    ⊢ ⦃ pre ⦄ x ← c ;; c₀ x ≈ c₁ ⦃ post ⦄.
-Proof.
-  intros H H'.
-  elim: H; intros.
-  + apply H'.
-  + by apply r_const_sample_L.
-Qed.
-
-Lemma r_NoFail_R {A B : choiceType} (c : raw_code B) (c₀ : raw_code A) (c₁ : B → raw_code A)
-    (pre : precond) (post : postcond A A) :
-    NoFail c →
-    (∀ x : B, ⊢ ⦃ pre ⦄ c₀ ≈ c₁ x ⦃ post ⦄) →
-    ⊢ ⦃ pre ⦄ c₀ ≈ x ← c ;; c₁ x ⦃ post ⦄.
-Proof.
-  intros H H'.
-  elim: H; intros.
-  + apply H'.
-  + by apply r_const_sample_R.
-Qed.
-
-Context (pkey_pair : ('pkey × 'skey) → Prop).
-Context (KEM_kgen_spec : ⊢ₛ η.(KEM_kgen) ⦃ pkey_pair ⦄).
-
-Definition encap_spec (pk : 'pkey) (kek : 'smkey × 'ekey) : Prop :=
-  ∀ sk, pkey_pair (pk, sk) → η.(KEM_decap) sk kek.2 = kek.1.
-
-Context (KEM_encap_spec : ∀ pk, ⊢ₛ η.(KEM_encap) pk ⦃ encap_spec pk ⦄).
-
-Definition CKA_CORR_KEM := 0%N.
-Definition CKA_CORR_KEM_KGEN := 1%N.
-
-Definition I_CORR_KEM_simple :=
-  [interface
-    #val #[ CKA_CORR_KEM ] : 'unit  → ('smkey × 'smkey)
-  ].
-
-
-Definition CORR1_kem (K : KEM_scheme) :
-  game I_CORR_KEM_simple :=
-  [module no_locs ;
-    #def #[ CKA_CORR_KEM ] (_ : 'unit) : ('smkey × 'smkey) {
-      '(kemPKey, kemSKey) ← K.(KEM_kgen) ;;
-      '(kemKey, kemEKey) ← K.(KEM_encap)(kemPKey) ;;
-
-      ret (kemKey, kemKey)
+  (* Corruption not implemented *)
+  ; keygen_corr := λ r,
+    {code
+      '(kemPKey, kemSKey) ← η.(KEM_kgen) ;;
+      ret (kemPKey, kemSKey)
     }
-  ].
+  |}.
 
-Definition CORR0_kem (K : KEM_scheme) :
-  game I_CORR_KEM_simple :=
+
+Definition CORR_KEM_RED_simple (K : cka_scheme) :
+  module (I_KEM η) (I_CORR_simple K) :=
   [module no_locs ;
-    #def #[ CKA_CORR_KEM ] (_ : 'unit) : ('smkey × 'smkey) {
-      '(kemPKey, kemSKey) ← K.(KEM_kgen) ;;
+    #def #[ CKAKEY ] (_ : 'unit) : 'unit {
+      #import {sig #[ GET ] : 'unit → ('kemKey η × 'kemKey η) } as GET_KEM ;;
 
-      '(kemKey, kemEKey) ← K.(KEM_encap)(kemPKey) ;;
+      '(kemKey, kemKey') ← GET_KEM tt ;;
+      #assert (kemKey == kemKey') ;;
 
-      let kemKey' := K.(KEM_decap)(kemSKey)(kemEKey) in
+      '(kemKey, kemKey') ← GET_KEM tt ;;
+      #assert (kemKey == kemKey') ;;
 
-      ret (kemKey, kemKey')
+      @ret 'unit Datatypes.tt
     }
   ].
 
 Definition CORR_KEM_RED (K : cka_scheme) :
-  module I_CORR_KEM_simple (I_CORR_simple K) :=
+  module (I_KEM η) (I_CORR K) :=
   [module no_locs ;
-    (* CKAKEY matches the oracle name from CORR_simple from the CKAScheme.v *)
-    #def #[ CKAKEY ] (_ : 'unit) : 'unit {
-      #import {sig #[ CKA_CORR_KEM ] : 'unit → ('smkey × 'smkey) } as GET_CORR_KEM ;;
+    #def #[ CKAKEY ] (n : 'nat) : 'unit {
+      #import {sig #[ GET ] : 'unit → ('kemKey η × 'kemKey η) } as GET_KEM ;;
 
-      '(kemKey, kemKey') ← GET_CORR_KEM tt ;;
-      #assert ((kemKey == kemKey')%bool) ;;
+      '(kemKey, kemKey') ← GET_KEM tt ;;
 
-      '(kemKey, kemKey') ← GET_CORR_KEM tt ;;
-      #assert ((kemKey == kemKey')%bool) ;;
-      
+      repeat (n) ((kemKey, kemKey') : ('kemKey η × 'kemKey η)) (fun state =>
+        let '(k, k') := state in
+        #assert (k == k') ;;
+
+        nextState ← GET_KEM tt ;;
+        @ret ('kemKey η × 'kemKey η) (nextState)
+      ) ;;
+
       @ret 'unit Datatypes.tt
     }
   ].
 
-Fixpoint repeat_kem {A : choiceType} (n : nat) (x : A) (c : A → raw_code A) := 
-  match n with
-   | 0%N => ret x
-   | n.+1 => 
-      x' ← c x ;;
-      repeat_kem n x' c
-  end.
-
-
-Instance valid_repeat_kem:
-∀ {A : choiceType} (L : {fset Location}) (I : Interface) (c : A → raw_code A) (x : A) (N : nat),
-    (∀ i : A, ValidCode L I (c i)) → ValidCode L I (repeat_kem N x c).
-    intros.
-    generalize dependent x.
-    induction N as [|N IH]; intros x0.
-    - simpl. eapply valid_ret.
-    - simpl. eapply valid_bind.
-      + eapply H.
-      + intros x'.
-        apply IH.
-Qed.
-  
-(*Definition CORR_KEM_FULL_RED (K : cka_scheme) :
-  module I_CORR_KEM_simple (I_CORR K) :=
-  [module no_locs ;
-    (* CKAKEY matches the oracle name from CORR_simple from the CKAScheme.v *)
-    #def #[ CKAKEY ] (n : ('nat)) : 'unit {
-      #import {sig #[ CKA_CORR_KEM ] : 'unit → ('smkey × 'smkey) } as GET_CORR_KEM ;;
-      
-       '(pk, x) ← K.(keygen) ;;
-      
-      repeat (n) ((pk, x) : ('stateS K × 'stateR K))  (fun state =>       
-        let '(stateS, stateR) := state in
-        
-        k ← K.(keygen) ;;
-        '(stateR', m, kS) ← K.(ckaS) stateS k ;;
-        '(stateS', kR) ← K.(ckaR) stateR m ;;
-
-        #assert (kS == kR) ;;
-        @ret ('stateS K × 'stateR K) (stateS', stateR')
-      ) ;;
-      @ret 'unit Datatypes.tt
-    }
-  ].*)
-Lemma destruct_let_pair : ∀ A B C (xy : A * B) (f : A → B → C), (let (x, y) := xy in f x y) = f xy.1 xy.2.
+Lemma destruct_let_pair :
+  ∀ A B C (xy : A * B) (f : A → B → C), (let (x, y) := xy in f x y) = f xy.1 xy.2.
 Proof.
   intros A B C xy f.
   destruct xy.
   by simpl.
 Qed.
-(*Theorem perfect_0_full :
-  (forall k, NoFail (KEM_kgen k)) -> perfect (I_CORR (cka_kem))(CORR0 (cka_kem))
-          (CORR_KEM_FULL_RED (cka_kem) ∘ CORR0_kem η).
-Proof.
-  intros nofail_kgen.
-  nssprove_share.
-  eapply prove_perfect.
-  apply eq_rel_perf_ind_eq.
-  simplify_eq_rel m.
-  simplify_linking.
-  ssprove_code_simpl; simpl.
-  rewrite bind_assoc.
-  ssprove_code_simpl; simpl.
-  eapply r_scheme_bind_spec. 1: eapply KEM_kgen_spec.
-  induction m.
-    -  intros [pk' sk'] pps'. ssprove_code_simpl; simpl.
-      apply r_ret.
-      done.
-    -  intros [pk' sk'] pps'. ssprove_code_simpl; simpl.
-      simplify_linking.
-      rewrite bind_assoc.
-      ssprove_code_simpl; simpl.
-      simplify_linking.
-      eapply r_scheme_bind_spec. 1: eapply KEM_kgen_spec. intros [pk'' sk''] pps''.
-      eapply r_scheme_bind_spec. 1: eapply KEM_encap_spec. intros [k'' ek''] hkek'.
-      rewrite hkek'.
-      2: { done. }
-      rewrite eq_refl.
-      ssprove_code_simpl; simpl.
-      eapply rel_jdg_replace_sem_r in IHm; simpl.
-      2: { apply pps''. }
-      2: {
-        ssprove_code_simpl; simpl.
-          eapply rreflexivity_rule.
-      }
-      simpl in IHm.
-      apply IHm.
-Qed.*)
 
-Definition CORR_KEM_FULL_RED_FINAL (K : cka_scheme) :
-  module I_CORR_KEM_simple (I_CORR K) :=
-  [module no_locs ;
-    (* CKAKEY matches the oracle name from CORR_simple from the CKAScheme.v *)
-    #def #[ CKAKEY ] (n : ('nat)) : 'unit {
-      #import {sig #[ CKA_CORR_KEM ] : 'unit → ('smkey × 'smkey) } as GET_CORR_KEM ;;
-      '(kemKey, kemKey') ← GET_CORR_KEM tt ;;
-
-      repeat (n) ((kemKey, kemKey') : ('smkey × 'smkey)) (fun state =>
-        let '(k, k') := state in 
-        #assert ((k == k')%bool) ;;
-        
-        '(k1, k1') ← GET_CORR_KEM tt ;;
-        @ret ('smkey × 'smkey) (k1, k1')
-      ) ;;
-
-      @ret 'unit Datatypes.tt
-    }
-  ].
-  
-Theorem perfect_0_full_final :
-  (forall pk, NoFail (KEM_encap η pk)) -> perfect (I_CORR (cka_kem))(CORR0 (cka_kem))
-          (CORR_KEM_FULL_RED_FINAL (cka_kem) ∘ CORR0_kem η).
+Theorem corr_kem_perfect_0 :
+  (forall pk, NoFail (η.(KEM_encap) pk)) ->
+      perfect (I_CORR cka_kem)
+      (CORR0 cka_kem)
+      (CORR_KEM_RED cka_kem ∘ KEM_0 η).
 Proof.
   intros nofail_encap.
   nssprove_share.
@@ -334,11 +137,10 @@ Proof.
   apply eq_rel_perf_ind_eq.
   simplify_eq_rel m.
   simplify_linking.
-  ssprove_code_simpl; simpl.
   rewrite cast_fun_K.
-  simplify_linking.
   ssprove_code_simpl; simpl.
-  eapply r_scheme_bind_spec. 1: eapply KEM_kgen_spec.
+  eapply r_scheme_bind_spec.
+  1: eapply η.(KEM_kgen_spec).
   induction m.
     - intros [pk' sk'] pps'. ssprove_code_simpl; simpl.
       apply r_NoFail_R.
@@ -374,10 +176,12 @@ Proof.
       exact fset0.
 Qed.
 
-  
-Theorem perfect_1_full_final :
-   (forall k, NoFail (KEM_kgen k)) -> (forall pk, NoFail (KEM_encap η pk)) -> perfect (I_CORR (cka_kem))(CORR1 (cka_kem))
-          (CORR_KEM_FULL_RED_FINAL (cka_kem) ∘ CORR1_kem η).
+Theorem corr_kem_perfect_1 :
+   NoFail η.(KEM_kgen) ->
+   (forall pk, NoFail (η.(KEM_encap) pk)) ->
+      perfect (I_CORR cka_kem)
+      (CORR1 cka_kem)
+      (CORR_KEM_RED cka_kem ∘ KEM_1 η).
 Proof.
    intros nofail.
   intros nofail_encap.
@@ -414,27 +218,26 @@ Proof.
     apply IHm.
 Qed.
 
-
-Definition CORR_simple K b := if b then CORR0_simple K else CORR1_simple K.
-Definition CORR_KEM η b := if b then CORR0_kem η else CORR1_kem η.
-
-Theorem cka_security_kem_full: ∀ (A : adversary (I_CORR cka_kem)),
-  (forall k, NoFail (KEM_kgen k)) ->
-  (forall pk, NoFail (KEM_encap η pk)) ->
-  AdvFor (CORR (cka_kem)) A <= AdvFor (CORR_KEM η) (A ∘ (CORR_KEM_FULL_RED_FINAL cka_kem)) .
+Theorem adv_cka_kem: ∀ (A : adversary (I_CORR cka_kem)),
+  NoFail η.(KEM_kgen) ->
+  (forall pk, NoFail (η.(KEM_encap) pk)) ->
+    AdvFor (CORR cka_kem) A <=
+    AdvFor (KEM η) (A ∘ (CORR_KEM_RED cka_kem)) .
 Proof.
   intros A nofail_kgen nofail_encap.
   unfold AdvFor.
-  rewrite (Adv_perfect_l (perfect_0_full_final nofail_encap)).
-  rewrite (Adv_perfect_r (perfect_1_full_final nofail_kgen nofail_encap)).
+  rewrite (Adv_perfect_l (corr_kem_perfect_0 nofail_encap)).
+  rewrite (Adv_perfect_r (corr_kem_perfect_1 nofail_kgen nofail_encap)).
   rewrite Adv_sep_link.
   done.
 Qed.
 
 
-Theorem perfect_0 :
-  (forall k, NoFail (KEM_kgen k)) -> perfect (I_CORR_simple (cka_kem))(CORR0_simple (cka_kem))
-          (CORR_KEM_RED (cka_kem) ∘ CORR0_kem η).
+Theorem corr_kem_perfect_0_simple :
+  NoFail η.(KEM_kgen) ->
+  perfect (I_CORR_simple cka_kem)
+    (CORR0_simple cka_kem)
+    (CORR_KEM_RED_simple cka_kem ∘ KEM_0 η).
 Proof.
   intros nofail_kgen.
   nssprove_share.
@@ -448,7 +251,7 @@ Proof.
   rewrite cast_fun_K.
   rewrite bind_assoc.
   ssprove_code_simpl; simpl.
-  eapply r_scheme_bind_spec. 1: eapply KEM_kgen_spec. intros [pk sk] pps.
+  eapply r_scheme_bind_spec. 1: eapply η.(KEM_kgen_spec). intros [pk sk] pps.
   eapply rel_jdg_replace_sem_r; simpl.
   2: {
       eapply rsame_head => x.
@@ -459,16 +262,16 @@ Proof.
     2: eapply rsame_head => x; rewrite destruct_let_pair; eapply rreflexivity_rule.
   eapply rel_jdg_replace_sem_l; simpl.
     2: eapply swap_code; ssprove_valid; eapply fdisjoint0s.
-  eapply r_scheme_bind_spec. 1: eapply KEM_encap_spec. intros [k' ek'] hkek.
+  eapply r_scheme_bind_spec. 1: eapply η.(KEM_encap_spec). intros [k' ek'] hkek.
   ssprove_code_simpl; simpl.
-  elim: (k' == KEM_decap η sk ek')%B.
+  elim: (k' == η.(KEM_decap) sk ek')%B.
   1: {
      ssprove_code_simpl; simpl.
-     eapply r_scheme_bind_spec. 1: eapply KEM_kgen_spec. intros [pk' sk'] pps'.
+     eapply r_scheme_bind_spec. 1: eapply η.(KEM_kgen_spec). intros [pk' sk'] pps'.
       apply r_NoFail_L.
       1: { done. }
       intros [pk'' sk''].
-      eapply r_scheme_bind_spec. 1: eapply KEM_encap_spec. intros [k'' ek''] hkek'.
+      eapply r_scheme_bind_spec. 1: eapply η.(KEM_encap_spec). intros [k'' ek''] hkek'.
       rewrite hkek'.
     2: { done. }
     rewrite eq_refl; simpl.
@@ -484,11 +287,14 @@ Proof.
   exact fset0.
 Qed.
 
-Theorem perfect_1 :
-  (forall k, NoFail (KEM_kgen k)) -> (forall pk, NoFail (KEM_encap η pk)) -> perfect (I_CORR_simple (cka_kem))(CORR1_simple (cka_kem))
-          (CORR_KEM_RED (cka_kem) ∘ CORR1_kem η).
+Theorem corr_kem_perfect_1_simple :
+  NoFail η.(KEM_kgen) ->
+  (forall pk, NoFail (η.(KEM_encap) pk)) ->
+    perfect (I_CORR_simple cka_kem)
+    (CORR1_simple cka_kem)
+    (CORR_KEM_RED_simple cka_kem ∘ KEM_1 η).
 Proof.
-  intros nofail.
+  intros nofail_kgen.
   intros nofail_encap.
   nssprove_share.
   eapply prove_perfect.
@@ -518,18 +324,16 @@ Proof.
   done.
 Qed.
 
-
-
-
-Theorem cka_security_kem: ∀ (A : adversary (I_CORR_simple cka_kem)),
-  (forall k, NoFail (KEM_kgen k)) ->
-  (forall pk, NoFail (KEM_encap η pk)) ->
-  AdvFor (CORR_simple (cka_kem)) A <= AdvFor (CORR_KEM η) (A ∘ (CORR_KEM_RED cka_kem)) .
+Theorem adv_cka_kem_simple: ∀ (A : adversary (I_CORR_simple cka_kem)),
+  NoFail η.(KEM_kgen) ->
+  (forall pk, NoFail (η.(KEM_encap) pk)) ->
+    AdvFor (CORR_simple cka_kem) A <=
+    AdvFor (KEM η) (A ∘ (CORR_KEM_RED_simple cka_kem)).
 Proof.
   intros A nofail_kgen nofail_encap.
   unfold AdvFor.
-  rewrite (Adv_perfect_l (perfect_0 nofail_kgen)).
-  rewrite (Adv_perfect_r (perfect_1 nofail_kgen nofail_encap)).
+  rewrite (Adv_perfect_l (corr_kem_perfect_0_simple nofail_kgen)).
+  rewrite (Adv_perfect_r (corr_kem_perfect_1_simple nofail_kgen nofail_encap)).
   rewrite Adv_sep_link.
   done.
 Qed.

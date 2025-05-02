@@ -67,11 +67,6 @@ Notation " 'key p " := (Key p)
   (at level 3) : package_scope.
 
 Definition CKAKEY := 0%N.
-Definition stater_loc (K: cka_scheme) : Location := ('option ('stateR K); 1%N).
-Definition states_loc (K: cka_scheme) : Location := ('option ('stateS K); 2%N).
-
-Definition CKA_loc (K : cka_scheme) :=
-  fset [:: stater_loc K ; states_loc K ].
 
 Definition I_CORR_simple (K : cka_scheme) :=
   [interface #val #[ CKAKEY ] : 'unit  → 'unit ].
@@ -132,7 +127,7 @@ Qed.
 
 Definition CORR0 (K : cka_scheme) : 
   game (I_CORR K) :=
-  [module CKA_loc K ;
+  [module no_locs ;
     #def #[ CKAKEY ] (n : ('nat)) : 'unit {
       '(pk, x) ← K.(keygen) ;;
       
@@ -158,6 +153,7 @@ Definition CORR1 (K : cka_scheme) :
     }
   ].
 
+Definition CORR_simple K b := if b then CORR0_simple K else CORR1_simple K.
 Definition CORR K b := if b then CORR0 K else CORR1 K.
 
 Definition epoch_loc : Location := ('nat; 11%N).
