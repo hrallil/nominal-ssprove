@@ -202,7 +202,7 @@ Definition triple_lhs (l₀ l₁ l₂ : Location) (R : l₀ → l₁ → l₂ �
 
 Notation inv0 t_max := (
  heap_ignore (fset[:: mga_loc; rcv_loc cka_ddh])
- (* Connect g^a to our case on t - 1 epoch *)
+ (* Connect mga_loc to our case when entering t_max epoch *)
   ⋊ triple_lrr (rcv_loc cka_ddh) (mga_loc) epoch_loc
       (λ rl mga t, t.+1 = t_max → Some(op_exp op_g rl) = mga)
 
@@ -226,7 +226,7 @@ Ltac swap_exp :=
   unfold op_exp, op_g in * ;
   rewrite !otf_fto expgAC.
 
-Theorem cka_security_ddh_perf t bit: (t > 1)%N →
+Lemma cka_security_ddh_perf t bit: (t > 1)%N →
   perfect
     (I_CKA_SECURITY cka_ddh)
     (CKA_SECURITY cka_ddh t bit)
@@ -236,7 +236,7 @@ Proof.
   intros.
   eapply prove_perfect.
   apply (eq_rel_perf_ind _ _ (inv0 t)).
-  1:ssprove_invariant.
+  1: ssprove_invariant.
   1-4: simpl.
   - fset_solve.
   - eapply Build_SemiInvariant.
@@ -405,7 +405,8 @@ Proof.
        eapply r_get_remember_rhs => rcv_r.
        eapply rpre_learn.
        {
-         intros h0 h1 [[[[[[[[[I0 I1] I2] I3] I4] I5] I6] I7] I8] I9]. 
+         intros
+         h0 h1 [[[[[[[[[I0 I1] I2] I3] I4] I5] I6] I7] I8] I9]. 
          unfold triple_lhs in I4.
          rewrite I5 I7 I8 in I4.
          apply I4.
@@ -414,7 +415,8 @@ Proof.
        intros send_fact.
        eapply rpre_learn.
        {
-         intros h0 h1 [[[[[[[[[I0 I1] I2] I3] I4] I5] I6] I7] I8] I9]. 
+         intros
+         h0 h1 [[[[[[[[[I0 I1] I2] I3] I4] I5] I6] I7] I8] I9]. 
          unfold triple_lrr in I2.
          rewrite I6 I8 I9 in I2.
          apply I2.
@@ -470,7 +472,8 @@ Proof.
             apply r_get_remember_rhs => mga.
             eapply rpre_learn.
             {
-              intros h0 h1 [[[[[[[[[I0 I1] I2] I3] I4] I5] I6] I7] I8] I9]. 
+              intros
+              h0 h1 [[[[[[[[[I0 I1] I2] I3] I4] I5] I6] I7] I8] I9]. 
               unfold triple_lhs in I4.
               rewrite I5 I7 I8 in I4.
               apply I4.
@@ -479,7 +482,8 @@ Proof.
             intros send_fact.
             eapply rpre_learn.
             {
-              intros h0 h1 [[[[[[[[[I0 I1] I2] I3] I4] I5] I6] I7] I8] I9]. 
+              intros
+              h0 h1 [[[[[[[[[I0 I1] I2] I3] I4] I5] I6] I7] I8] I9]. 
               unfold triple_lrr in I1.
               rewrite I6 I8 I9 in I1.
               apply I1.
@@ -525,7 +529,8 @@ Proof.
             apply r_get_remember_rhs => mga.
             eapply rpre_learn.
             {
-              intros h0 h1 [[[[[[[[[I0 I1] I2] I3] I4] I5] I6] I7] I8] I9]. 
+              intros
+              h0 h1 [[[[[[[[[I0 I1] I2] I3] I4] I5] I6] I7] I8] I9]. 
               unfold triple_lhs in I4.
               rewrite I5 I7 I8 in I4.
               apply I4.
@@ -534,7 +539,8 @@ Proof.
             intros send_fact.
             eapply rpre_learn.
             {
-              intros h0 h1 [[[[[[[[[I0 I1] I2] I3] I4] I5] I6] I7] I8] I9]. 
+              intros
+              h0 h1 [[[[[[[[[I0 I1] I2] I3] I4] I5] I6] I7] I8] I9]. 
               unfold triple_lrr in I1. 
               rewrite I6 I8 I9 in I1.
               apply I1.
@@ -583,7 +589,8 @@ Proof.
          eapply r_get_remember_lhs => rcv_l.
          eapply rpre_learn.
          {
-           intros h0 h1 [[[[[[[[[I0 I1] I2] I3] I4] I5] I6] I7] I8] I9]. 
+           intros
+           h0 h1 [[[[[[[[[I0 I1] I2] I3] I4] I5] I6] I7] I8] I9]. 
            unfold triple_lhs in I4.
            rewrite I5 I7 I9 in I4.
            apply I4.
@@ -592,7 +599,8 @@ Proof.
          intros send_fact_left.
          eapply rpre_learn.
          {
-           intros h0 h1 [[[[[[[[[I0 I1] I2] I3] I4] I5] I6] I7] I8] I9]. 
+           intros
+           h0 h1 [[[[[[[[[I0 I1] I2] I3] I4] I5] I6] I7] I8] I9]. 
            unfold triple_lrr in I3.
            rewrite I6 I8 I9 in I3.
            apply I3.
@@ -625,9 +633,10 @@ Proof.
             done.
 Qed.
 
-Lemma cka_security_ddh
+Theorem cka_security_ddh
   : ∀ (A : adversary (I_CKA_SECURITY cka_ddh)) t, (t > 1)%N →
-  AdvFor (CKA_SECURITY cka_ddh t) A = AdvFor DDH (A ∘ CKA_SECURITY_RED t).
+  AdvFor (CKA_SECURITY cka_ddh t) A =
+  AdvFor DDH (A ∘ CKA_SECURITY_RED t).
 Proof.
   intros A t tH.
   unfold AdvFor.
