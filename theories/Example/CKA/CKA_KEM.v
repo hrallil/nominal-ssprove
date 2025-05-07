@@ -43,13 +43,6 @@ Definition cka_kem: cka_scheme := {|
   ; StateS := η.(KEM_PKey) 
   ; StateR := η.(KEM_SKey) 
 
-  ; sampleKey :=
-    {code 
-      '(kemPKey, _) ← η.(KEM_kgen) ;;
-      '(kemKey, _) ← η.(KEM_encap)(kemPKey) ;;
-      ret kemKey
-    }
-
   ; keygen :=
     {code
       '(kemPKey, kemSKey) ← η.(KEM_kgen) ;;
@@ -72,11 +65,18 @@ Definition cka_kem: cka_scheme := {|
       ret (kemPKey, kemKey)
     }
 
-  (* Corruption not implemented *)
+  (* Corruption and sampling not implemented *)
   ; keygen_corr := λ r,
     {code
       '(kemPKey, kemSKey) ← η.(KEM_kgen) ;;
       ret (kemPKey, kemSKey)
+    }
+  ; sampleKey :=
+    {code 
+      '(kemPKey, _) ← η.(KEM_kgen) ;;
+      '(kemKey, _) ← η.(KEM_encap)(kemPKey) ;;
+
+      ret kemKey
     }
   |}.
 
@@ -226,15 +226,17 @@ Definition CORR_KEM_RED (K : cka_scheme) :
   module (I_KEM η) (I_CORR K) :=
   [module no_locs ;
     #def #[ CKAKEY ] (n : 'nat) : 'unit {
-      #import {sig #[ GET ] : 'unit → ('kemKey η × 'kemKey η) } as GET_KEM ;;
+      #import {sig #[ GET ] : 'unit → ('kemKey η × 'kemKey η) }
+        as GET_KEM ;;
       '(kemKey, kemKey') ← GET_KEM tt ;;
 
-      repeat (n) ((kemKey, kemKey') : ('kemKey η × 'kemKey η)) (fun state =>
-        let '(k, k') := state in
-        #assert (k == k') ;;
+      repeat (n) ((kemKey, kemKey') : ('kemKey η × 'kemKey η))
+        (fun state =>
+          let '(k, k') := state in
+          #assert (k == k') ;;
 
-        nextState ← GET_KEM tt ;;
-        @ret ('kemKey η × 'kemKey η) (nextState)
+          nextState ← GET_KEM tt ;;
+          @ret ('kemKey η × 'kemKey η) (nextState)
       ) ;;
 
       @ret 'unit Datatypes.tt
@@ -281,7 +283,7 @@ Proof.
       2: {
         eapply swap_code.
         all: ssprove_valid.
-        eapply fdisjoint0s.
+        apply (fdisjoint0s fset0).
       }
       eapply r_scheme_bind_spec.
       1: eapply KEM_encap_spec.
@@ -293,15 +295,10 @@ Proof.
       eapply r_scheme_bind_spec.
       1: eapply KEM_kgen_spec.
       intros [pk' sk'] pps'.
-      eapply rel_jdg_replace_sem_r in IHm; simpl.
-      2: { apply pps'. }
-      2: {
-        eapply rreflexivity_rule.
-      }
+      (*specialize (IHm _ pps').
       simpl in IHm.
-      apply IHm.
-      Unshelve.
-      exact fset0.
+      apply IHm.*)
+      apply (IHm _ pps').
 Qed.
 
 Theorem corr_kem_perfect_1 :

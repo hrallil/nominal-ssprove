@@ -36,14 +36,16 @@ Record kem_scheme := {
     KEM_Key : choice_type ;
 
     KEM_kgen : code fset0 [interface] (KEM_PKey × KEM_SKey) ;
-    KEM_encap : KEM_PKey → code fset0 [interface] (KEM_Key × KEM_EKey) ;
+    KEM_encap :
+       KEM_PKey → code fset0 [interface] (KEM_Key × KEM_EKey) ;
     KEM_decap : KEM_SKey → KEM_EKey → KEM_Key ;
 
     KEM_keypair : (KEM_PKey × KEM_SKey) → Prop ;
     KEM_kgen_spec: ⊢ₛ KEM_kgen ⦃ KEM_keypair ⦄ ;
-    encap_spec (pk : KEM_PKey) (kek : chProd KEM_Key KEM_EKey) : Prop :=
-      ∀ sk, KEM_keypair (pk, sk) → KEM_decap sk kek.2 = kek.1 ;
-    KEM_encap_spec : ∀ (pk : KEM_PKey), ⊢ₛ KEM_encap pk ⦃ (encap_spec pk) ⦄
+    encap_spec (pk : KEM_PKey) (kek : chProd KEM_Key KEM_EKey) : Prop
+     := ∀ sk, KEM_keypair (pk, sk) → KEM_decap sk kek.2 = kek.1 ;
+    KEM_encap_spec :
+      ∀ (pk : KEM_PKey), ⊢ₛ KEM_encap pk ⦃ (encap_spec pk) ⦄
 }.
 
 Notation " 'kemPKey p " := (KEM_PKey p)
