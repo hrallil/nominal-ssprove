@@ -93,7 +93,8 @@ Definition CORR_KEM_RED_simple (K : cka_scheme) :
   module (I_KEM η) (I_CORR_simple K) :=
   [module no_locs ;
     #def #[ CKAKEY ] (_ : 'unit) : 'unit {
-      #import {sig #[ GET ] : 'unit → ('kemKey η × 'kemKey η) } as GET_KEM ;;
+      #import {sig #[ GET ] : 'unit → ('kemKey η × 'kemKey η) }
+        as GET_KEM ;;
 
       '(kemKey, kemKey') ← GET_KEM tt ;;
       #assert (kemKey == kemKey') ;;
@@ -139,7 +140,7 @@ Proof.
   2: {
     eapply swap_code. 
     all: ssprove_valid.
-    eapply fdisjoint0s.
+    eapply (fdisjoint0s fset0).
   }
   eapply r_scheme_bind_spec.
   1: eapply η.(KEM_encap_spec).
@@ -168,8 +169,6 @@ Proof.
   1: { done. }
   intros [pk' sk'].
   apply r_fail.
-  Unshelve.
-  exact fset0.
 Qed.
 
 Theorem corr_kem_perfect_1_simple :
@@ -243,70 +242,12 @@ Definition CORR_KEM_RED (K : cka_scheme) :
     }
   ].
 
-Theorem corr_kem_perfect_0 :
-  (forall pk, NoFail (η.(KEM_encap) pk)) ->
-    perfect (I_CORR cka_kem)
-    (CORR0 cka_kem)
-    (CORR_KEM_RED cka_kem ∘ KEM_0 η).
-Proof.
-  intros nofail_encap.
-  nssprove_share.
-  eapply prove_perfect.
-  apply eq_rel_perf_ind_eq.
-  simplify_eq_rel m.
-  ssprove_code_simpl; simpl.
-  simplify_linking.
-  rewrite cast_fun_K.
-  ssprove_code_simpl; simpl.
-  eapply r_scheme_bind_spec.
-  1: eapply η.(KEM_kgen_spec).
-  induction m.
-    - intros [pk sk] pps.
-      ssprove_code_simpl; simpl.
-      apply r_NoFail_R.
-      1: { done. }
-      destruct x.
-      apply r_ret.
-      done.
-    - intros [pk sk] pps.
-      ssprove_code_simpl; simpl.
-      rewrite cast_fun_K.
-      simplify_linking.
-      ssprove_code_simpl; simpl.
-      eapply rel_jdg_replace_sem_l; simpl.
-      2: {
-        eapply rsame_head => x.
-        rewrite destruct_let_pair.
-        eapply rreflexivity_rule.
-      }
-      eapply rel_jdg_replace_sem_l; simpl.
-      2: {
-        eapply swap_code.
-        all: ssprove_valid.
-        apply (fdisjoint0s fset0).
-      }
-      eapply r_scheme_bind_spec.
-      1: eapply KEM_encap_spec.
-      intros [k ek] hkek.
-      rewrite hkek.
-      2: { done. }
-      rewrite eq_refl; simpl.
-      ssprove_code_simpl; simpl.
-      eapply r_scheme_bind_spec.
-      1: eapply KEM_kgen_spec.
-      intros [pk' sk'] pps'.
-      (*specialize (IHm _ pps').
-      simpl in IHm.
-      apply IHm.*)
-      apply (IHm _ pps').
-Qed.
-
-Theorem corr_kem_perfect_1 :
+Lemma corr_cka_kem_perfect bit:
   NoFail η.(KEM_kgen) ->
   (forall pk, NoFail (η.(KEM_encap) pk)) ->
     perfect (I_CORR cka_kem)
-    (CORR1 cka_kem)
-    (CORR_KEM_RED cka_kem ∘ KEM_1 η).
+    (CORR cka_kem bit)
+    (CORR_KEM_RED cka_kem ∘ KEM η bit).
 Proof.
   intros nofail_kgen.
   intros nofail_encap.
@@ -316,33 +257,80 @@ Proof.
   simplify_eq_rel m.
   ssprove_code_simpl; simpl.
   simplify_linking.
-  rewrite cast_fun_K.
-  ssprove_code_simpl; simpl.
-  apply r_NoFail_R.
-  1: { done. }
-  induction m.
-    - intros [pk sk].
-      apply r_NoFail_R.
-      1: { done. }
-      intros [k ek].
+  destruct bit.
+    - ssprove_code_simpl; simpl.
+      simplify_linking.
+      rewrite cast_fun_K.
+      rewrite cast_fun_K.
       ssprove_code_simpl; simpl.
-      apply r_ret.
-      done.
-    - intros [pk sk].
-      apply r_NoFail_R.
-      1: { done. }
-      intros [k ek].
-      ssprove_code_simpl; simpl.
-      rewrite eq_refl.
-      ssprove_code_simpl; simpl.
+      eapply r_scheme_bind_spec.
+      1: eapply η.(KEM_kgen_spec).
+      induction m.
+        * intros [pk sk] pps.
+          ssprove_code_simpl; simpl.
+          apply r_NoFail_R.
+          1: { done. }
+          destruct x.
+          apply r_ret.
+          done.
+        * intros [pk sk] pps.
+          ssprove_code_simpl; simpl.
+          rewrite cast_fun_K.
+          simplify_linking.
+          ssprove_code_simpl; simpl.
+          eapply rel_jdg_replace_sem_l; simpl.
+          2: {
+            eapply rsame_head => x.
+            rewrite destruct_let_pair.
+            eapply rreflexivity_rule.
+          }
+          eapply rel_jdg_replace_sem_l; simpl.
+          2: {
+            eapply swap_code.
+            all: ssprove_valid.
+            apply (fdisjoint0s fset0).
+          }
+          eapply r_scheme_bind_spec.
+          1: eapply KEM_encap_spec.
+          intros [k ek] hkek.
+          rewrite hkek.
+          2: { done. }
+          rewrite eq_refl; simpl.
+          ssprove_code_simpl; simpl.
+          eapply r_scheme_bind_spec.
+          1: eapply KEM_kgen_spec.
+          intros [pk' sk'] pps'.
+          apply (IHm _ pps').
+    - ssprove_code_simpl; simpl.
+      simplify_linking.
+      rewrite cast_fun_K.
       rewrite cast_fun_K.
       ssprove_code_simpl; simpl.
       apply r_NoFail_R.
       1: { done. }
-      apply IHm.
+      induction m.
+        * intros [pk sk].
+          apply r_NoFail_R.
+          1: { done. }
+          intros [k ek].
+          ssprove_code_simpl; simpl.
+          apply r_ret.
+          done.
+        * intros [pk sk].
+          apply r_NoFail_R.
+          1: { done. }
+          intros [k ek].
+          ssprove_code_simpl; simpl.
+          rewrite eq_refl.
+          ssprove_code_simpl; simpl.
+          rewrite cast_fun_K.
+          ssprove_code_simpl; simpl.
+          apply r_NoFail_R.
+          1: { done. }
+          apply IHm.
 Qed.
 
-Theorem adv_cka_kem: ∀ (A : adversary (I_CORR cka_kem)),
+Theorem corr_cka_kem: ∀ (A : adversary (I_CORR cka_kem)),
   NoFail η.(KEM_kgen) ->
   (forall pk, NoFail (η.(KEM_encap) pk)) ->
     AdvFor (CORR cka_kem) A <=
@@ -350,8 +338,8 @@ Theorem adv_cka_kem: ∀ (A : adversary (I_CORR cka_kem)),
 Proof.
   intros A nofail_kgen nofail_encap.
   unfold AdvFor.
-  rewrite (Adv_perfect_l (corr_kem_perfect_0 nofail_encap)).
-  rewrite (Adv_perfect_r (corr_kem_perfect_1 nofail_kgen nofail_encap)).
+  rewrite (Adv_perfect_l (corr_cka_kem_perfect _ nofail_kgen nofail_encap)).
+  rewrite (Adv_perfect_r (corr_cka_kem_perfect _ nofail_kgen nofail_encap)).
   rewrite Adv_sep_link.
   done.
 Qed.
